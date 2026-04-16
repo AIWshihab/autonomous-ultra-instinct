@@ -1,3 +1,9 @@
+---
+title: Contribution Guide
+aliases: ["Contributing Guide", "Contributing"]
+tags: [project111, obsidian, contribution, collaboration]
+---
+
 # Contribution Guide
 
 Guidelines for contributing to the autonomous repair agent project.
@@ -25,3 +31,8 @@ Guidelines for contributing to the autonomous repair agent project.
 - Branch from `main` with descriptive branch names.
 - Use clear commit messages and include relevant issue references.
 - Open a pull request with a summary of the change and validation steps.
+
+## See also
+
+- [[Testing Strategy]]
+- [[Project Notes]]

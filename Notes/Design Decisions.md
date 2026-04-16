@@ -1,3 +1,9 @@
+---
+title: Design Decisions
+aliases: ["Architecture Decisions", "Design Notes"]
+tags: [project111, obsidian, design, architecture]
+---
+
 # Design Decisions
 
 This note captures major architectural and design decisions for the autonomous repair agent project.
@@ -20,3 +26,9 @@ This note captures major architectural and design decisions for the autonomous r
 - Consider adding plugin-based issue detectors for cloud providers and infrastructure services.
 - Add a policy configuration file to allow easier tuning without code edits.
 - Expand the system to support multiple backends for telemetry collection.
+
+## See also
+
+- [[Policy Matrix]]
+- [[Implementation Guide]]
+- [[Project Notes]]

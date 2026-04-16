@@ -1,3 +1,9 @@
+---
+title: Glossary
+aliases: ["Project Glossary", "Terms"]
+tags: [project111, obsidian, glossary, terms]
+---
+
 # Glossary
 
 Key terms used by the autonomous repair agent project.
@@ -12,3 +18,8 @@ Key terms used by the autonomous repair agent project.
 - **Risk tier**: A policy label such as low, medium, or high that reflects action impact.
 - **Execution mode**: The intended handling of an action, e.g. `simulate_only`, `execute_when_safe`, or `blocked`.
 - **Approval required**: Indicates whether a human reviewer is needed before action execution.
+
+## See also
+
+- [[Implementation Guide]]
+- [[Project Notes]]

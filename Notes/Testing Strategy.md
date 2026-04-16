@@ -1,3 +1,9 @@
+---
+title: Testing Strategy
+aliases: ["Test Plan", "QA Strategy"]
+tags: [project111, obsidian, testing, qa]
+---
+
 # Testing Strategy
 
 This note outlines the testing approach for the project.
@@ -19,3 +25,9 @@ This note outlines the testing approach for the project.
 - Ensure deterministic reasoning and stable action classification.
 - Verify that blocked actions never execute.
 - Validate that all audit trace fields are present in API responses.
+
+## See also
+
+- [[Contribution Guide]]
+- [[Project Notes]]
+- [[Change Log]]

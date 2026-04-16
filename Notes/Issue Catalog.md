@@ -1,3 +1,9 @@
+---
+title: Issue Catalog
+aliases: ["Issue Reference", "Detection Catalog"]
+tags: [project111, obsidian, issues, detection]
+---
+
 # Issue Catalog
 
 A reference of issue types and their expected evidence patterns.
@@ -31,3 +37,9 @@ A reference of issue types and their expected evidence patterns.
 ## Catalog usage
 
 This note helps developers and operators understand what issues the agent detects and why. It can be extended as new detectors are added.
+
+## See also
+
+- [[Implementation Guide]]
+- [[Policy Matrix]]
+- [[Project Notes]]

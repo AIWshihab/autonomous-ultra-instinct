@@ -1,3 +1,9 @@
+---
+title: Policy Matrix
+aliases: ["Policy Guide", "Policy Notes"]
+tags: [project111, obsidian, policy, governance]
+---
+
 # Policy Matrix
 
 This matrix documents policy decisions for automated repair actions.
@@ -15,3 +21,9 @@ This matrix documents policy decisions for automated repair actions.
 - `simulate_only` means the action is traced but not actually executed in live mode.
 - High-risk actions are blocked by default and need explicit operator approval.
 - Confidence metadata is used to help surface policy rationale to reviewers.
+
+## See also
+
+- [[Design Decisions]]
+- [[Issue Catalog]]
+- [[Project Notes]]

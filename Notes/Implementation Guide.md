@@ -1,3 +1,9 @@
+---
+title: Implementation Guide
+aliases: ["Implementation Notes", "Development Guide"]
+tags: [project111, obsidian, implementation, code]
+---
+
 # Implementation Guide
 
 This note provides a quick reference to the repository structure and core implementation flow.
@@ -29,3 +35,9 @@ This note provides a quick reference to the repository structure and core implem
 - Add policy rules in `app/core/policy_engine.py`.
 - Add execution paths in `app/executors/` with safe simulation.
 - Extend API routes when additional instrumentation is required.
+
+## See also
+
+- [[Design Decisions]]
+- [[Glossary]]
+- [[Project Notes]]

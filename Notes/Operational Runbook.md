@@ -1,3 +1,9 @@
+---
+title: Operational Runbook
+aliases: ["Runbook", "Operations Guide"]
+tags: [project111, obsidian, operations, runbook]
+---
+
 # Operational Runbook
 
 This document describes how to operate, troubleshoot, and monitor the autonomous repair agent.
@@ -19,3 +25,9 @@ This document describes how to operate, troubleshoot, and monitor the autonomous
 - Update detectors as new issue patterns appear.
 - Refresh policy rules based on risk posture and operational experience.
 - Run full test suite after any change: `python -m pytest -q`.
+
+## See also
+
+- [[Deployment Checklist]]
+- [[Issue Catalog]]
+- [[Project Notes]]

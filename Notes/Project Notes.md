@@ -1,18 +1,33 @@
-# Project 111 Obsidian Vault
+---
+title: Project Notes
+aliases: ["Vault Home", "Project 111 Notes"]
+tags: [project111, obsidian, docs, vault-home]
+---
 
-This repository now includes a minimal Obsidian vault structure for project notes.
+# Project Notes
+
+This vault is designed for Obsidian-style note taking with backlinks and a navigable note graph.
+
+## Key notes
+
+- [[Design Decisions]]
+- [[Implementation Guide]]
+- [[Policy Matrix]]
+- [[Issue Catalog]]
+- [[Testing Strategy]]
+- [[Operational Runbook]]
+- [[Deployment Checklist]]
+- [[Contribution Guide]]
+- [[Glossary]]
+- [[Change Log]]
 
 ## How to use
 
-- Open the repository folder in Obsidian as a vault.
-- Add notes under the `Notes/` folder.
-- Use `AGENTS.md`, `ARCHITECTURE.md`, and `README.md` as canonical project documentation.
+- Open the repository root in Obsidian and use `Notes/` as the main note folder.
+- Navigate using `[[...]]` backlinks and search with tags.
+- Keep this file as the vault home note.
 
-## Starter Notes
+## Notes structure
 
-- `Notes/Project Notes.md`: This file.
-
-## Notes Structure
-
-- `Notes/` is intended for markdown notes and project documentation managed in Obsidian.
-- The `.obsidian/` folder contains local Obsidian vault settings.
+- `Notes/` contains markdown documentation and project knowledge.
+- `.obsidian/` contains local Obsidian vault settings.
