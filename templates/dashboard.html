@@ -68,8 +68,12 @@
                         <a href="#issues" class="sidebar-link">Issues</a>
                         <a href="#processes" class="sidebar-link">Processes</a>
                         <a href="#services" class="sidebar-link">Services</a>
+                        <a href="#runtime-observation" class="sidebar-link">Runtime Trace</a>
                         <a href="#plan-results" class="sidebar-link">Plan Results</a>
                         <a href="#execute-results" class="sidebar-link">Execution</a>
+                        <a href="#approval-center" class="sidebar-link">Approval Center</a>
+                        <a href="#history" class="sidebar-link">History Timeline</a>
+                        <a href="#incidents" class="sidebar-link">Incidents</a>
                     </nav>
 
                     <div class="mt-auto rounded-2xl border border-emerald-400/15 bg-emerald-400/8 p-4">
@@ -208,6 +212,17 @@
                         </div>
                     </section>
 
+                    <section id="baseline" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Baseline</p>
+                                <h3 class="section-title">Host Norms & Anomaly Signals</h3>
+                            </div>
+                            <span id="baseline-meta" class="section-meta">Baseline-aware deviation context</span>
+                        </div>
+                        <div id="baseline-panel" class="grid gap-5 xl:grid-cols-3"></div>
+                    </section>
+
                     <section class="grid gap-6 2xl:grid-cols-[1.2fr_0.8fr]">
                         <div id="issues" class="section-panel">
                             <div class="section-head">
@@ -239,6 +254,44 @@
                                     </div>
                                 </div>
                                 <div id="logs-panel" class="log-shell"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="runtime-observation" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Runtime Observability</p>
+                                <h3 class="section-title">Governed Command Trace</h3>
+                            </div>
+                            <span id="runtime-meta" class="section-meta">Awaiting runtime observation data</span>
+                        </div>
+                        <div class="grid gap-5 xl:grid-cols-2">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-signal">Observation Tasks</span>
+                                </div>
+                                <div id="runtime-tasks-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Policy Decisions</span>
+                                </div>
+                                <div id="runtime-policy-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                        <div class="mt-5 grid gap-5 xl:grid-cols-2">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-success">Command Results</span>
+                                </div>
+                                <div id="runtime-results-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-warning">Recent Runtime Batches</span>
+                                </div>
+                                <div id="runtime-recent-panel" class="space-y-3"></div>
                             </div>
                         </div>
                     </section>
@@ -306,6 +359,23 @@
                                 <div id="blocked-actions-panel" class="space-y-3"></div>
                             </div>
                         </div>
+
+                        <div class="mt-6 grid gap-5 xl:grid-cols-2">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-signal">Remediation Strategies</span>
+                                    <span id="strategy-count" class="result-count">0</span>
+                                </div>
+                                <div id="strategy-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Incident State Machine</span>
+                                    <span id="incident-state-count" class="result-count">0</span>
+                                </div>
+                                <div id="incident-state-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
                     </section>
 
                     <section id="execute-results" class="section-panel">
@@ -333,6 +403,67 @@
                                 <div id="verification-panel" class="space-y-3"></div>
                             </div>
                         </div>
+
+                        <div class="mt-6">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-signal">Playbook Execution Timeline</span>
+                                    <span id="playbook-execution-count" class="result-count">0</span>
+                                </div>
+                                <div id="playbook-execution-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="approval-center" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Operator Governance</p>
+                                <h3 class="section-title">Approval Center</h3>
+                            </div>
+                            <span id="approval-meta" class="section-meta">Human-in-the-loop queue</span>
+                        </div>
+                        <div class="grid gap-5 xl:grid-cols-2">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-warning">Pending Queue</span>
+                                    <span id="approval-pending-count" class="result-count">0</span>
+                                </div>
+                                <div id="approval-queue-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Recent Decisions</span>
+                                    <span id="approval-recent-count" class="result-count">0</span>
+                                </div>
+                                <div id="approval-recent-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="history" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Timeline</p>
+                                <h3 class="section-title">Event History & Incident Replay</h3>
+                            </div>
+                            <span id="history-recent-meta" class="section-meta">Latest operational events</span>
+                        </div>
+                        <div class="grid gap-6 xl:grid-cols-[0.55fr_0.45fr]">
+                            <div id="history-list" class="space-y-3"></div>
+                            <div id="history-details" class="rounded-3xl border border-white/10 bg-black/20 p-5"></div>
+                        </div>
+                    </section>
+
+                    <section id="incidents" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Incidents</p>
+                                <h3 class="section-title">Recurring Patterns & Correlated Groups</h3>
+                            </div>
+                            <span id="incident-meta" class="section-meta">Recurring issue clusters</span>
+                        </div>
+                        <div id="incident-list" class="space-y-3"></div>
                     </section>
                 </div>
             </main>

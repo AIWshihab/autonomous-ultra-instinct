@@ -5,6 +5,13 @@ const state = {
     loading: false,
     data: null,
     lastRefresh: null,
+    history: [],
+    selectedHistoryEvent: null,
+    incidents: [],
+    baselineSummary: null,
+    approvals: [],
+    approvalDecisions: [],
+    runtimeRecent: [],
 };
 
 const els = {};
@@ -63,11 +70,34 @@ function cacheElements() {
         "allowed-actions-panel",
         "approval-required-actions-panel",
         "blocked-actions-panel",
+        "strategy-count",
+        "strategy-panel",
+        "incident-state-count",
+        "incident-state-panel",
         "execute-meta",
         "executed-count",
         "verification-count",
         "executed-actions-panel",
         "verification-panel",
+        "playbook-execution-count",
+        "playbook-execution-panel",
+        "approval-meta",
+        "approval-pending-count",
+        "approval-recent-count",
+        "approval-queue-panel",
+        "approval-recent-panel",
+        "history-recent-meta",
+        "history-list",
+        "history-details",
+        "baseline-panel",
+        "baseline-meta",
+        "runtime-meta",
+        "runtime-tasks-panel",
+        "runtime-policy-panel",
+        "runtime-results-panel",
+        "runtime-recent-panel",
+        "incident-meta",
+        "incident-list",
     ];
 
     ids.forEach((id) => {
@@ -146,6 +176,10 @@ async function loadView(action) {
         state.loading = false;
         applyControlState();
         renderAll();
+        await loadHistoryTimeline();
+        await loadRecentIncidents();
+        await loadApprovalCenter();
+        await loadRuntimeRecent();
         setBanner(`${capitalize(action)} telemetry updated successfully.`, "info");
     } catch (error) {
         state.loading = false;
@@ -163,12 +197,280 @@ function buildUrl(action) {
     return `/${action}?${params.toString()}`;
 }
 
+async function loadHistoryTimeline() {
+    try {
+        const params = new URLSearchParams({
+            platform: state.platform,
+            mode: state.mode,
+            limit: 8,
+        });
+        const response = await fetch(`/history/recent?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `History request failed with status ${response.status}`);
+        }
+
+        state.history = payload || [];
+        state.selectedHistoryEvent = state.history[0] || null;
+        renderHistoryTimeline();
+        if (state.selectedHistoryEvent) {
+            await loadHistoryEventDetails(state.selectedHistoryEvent.event_id);
+        }
+    } catch (error) {
+        console.error(error);
+        els["history-list"].innerHTML = `<div class="empty-state">Unable to load history.</div>`;
+        els["history-details"].innerHTML = `<div class="empty-state">History timeline unavailable.</div>`;
+    }
+}
+
+async function loadHistoryEventDetails(eventId) {
+    try {
+        const response = await fetch(`/history/${encodeURIComponent(eventId)}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `History event failed with status ${response.status}`);
+        }
+        state.selectedHistoryEvent = payload;
+        renderHistoryDetails(payload);
+    } catch (error) {
+        console.error(error);
+        els["history-details"].innerHTML = `<div class="empty-state">Unable to load event details.</div>`;
+    }
+}
+
+async function loadRecentIncidents() {
+    try {
+        const params = new URLSearchParams({
+            platform: state.platform,
+            mode: state.mode,
+            limit: 5,
+        });
+        const response = await fetch(`/incidents/recent?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `Incidents request failed with status ${response.status}`);
+        }
+
+        state.incidents = payload || [];
+        renderIncidentList();
+    } catch (error) {
+        console.error(error);
+        els["incident-meta"].textContent = "Recurring issue clusters";
+        els["incident-list"].innerHTML = `<div class="empty-state">Unable to load incidents.</div>`;
+    }
+}
+
+async function loadApprovalCenter() {
+    try {
+        const queueParams = new URLSearchParams({
+            status: "pending",
+            platform: state.platform,
+            mode: state.mode,
+            limit: 20,
+        });
+        const queueResponse = await fetch(`/approvals?${queueParams.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const queuePayload = await queueResponse.json();
+        if (!queueResponse.ok) {
+            throw new Error(queuePayload.detail || `Approval queue request failed with status ${queueResponse.status}`);
+        }
+
+        const decisionResponse = await fetch("/approvals/recent?limit=20", {
+            headers: { Accept: "application/json" },
+        });
+        const decisionPayload = await decisionResponse.json();
+        if (!decisionResponse.ok) {
+            throw new Error(decisionPayload.detail || `Approval decisions request failed with status ${decisionResponse.status}`);
+        }
+
+        state.approvals = queuePayload || [];
+        state.approvalDecisions = decisionPayload || [];
+        renderApprovalCenter();
+    } catch (error) {
+        console.error(error);
+        els["approval-meta"].textContent = "Approval workflow unavailable";
+        els["approval-queue-panel"].innerHTML = `<div class="empty-state">Unable to load pending approvals.</div>`;
+        els["approval-recent-panel"].innerHTML = `<div class="empty-state">Unable to load approval decisions.</div>`;
+    }
+}
+
+async function loadRuntimeRecent() {
+    try {
+        const params = new URLSearchParams({
+            platform: state.platform,
+            mode: state.mode,
+            limit: 6,
+        });
+        const response = await fetch(`/runtime/observations/recent?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `Runtime observation request failed with status ${response.status}`);
+        }
+        state.runtimeRecent = payload || [];
+        renderRuntimeObservation(state.data?.snapshot?.runtime_observation_trace || null, state.runtimeRecent);
+    } catch (error) {
+        console.error(error);
+        els["runtime-meta"].textContent = "Runtime observation history unavailable";
+        els["runtime-recent-panel"].innerHTML = `<div class="empty-state">Unable to load recent runtime observation batches.</div>`;
+    }
+}
+
+function renderIncidentList() {
+    if (!state.incidents || state.incidents.length === 0) {
+        els["incident-meta"].textContent = "No recurring incident clusters detected";
+        els["incident-list"].innerHTML = emptyState("No recurring incidents have been correlated yet.");
+        return;
+    }
+
+    els["incident-meta"].textContent = `${state.incidents.length} recurring incident clusters detected`;
+    els["incident-list"].innerHTML = state.incidents
+        .map((incident) => {
+            const badgeClass = getIncidentSeverityClass(incident.severity_summary);
+            const lastSeen = formatDateTime(new Date(incident.last_seen_at));
+            const eventCount = incident.related_event_ids?.length ?? 0;
+            return `
+                <article class="incident-card">
+                    <div class="incident-card-head">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">${escapeHtml(incident.issue_type)}</p>
+                            <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(incident.incident_title)}</h4>
+                        </div>
+                        <span class="status-badge ${badgeClass}">${escapeHtml(incident.severity_summary)}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">Target: ${escapeHtml(incident.target || "global")} · Attention: ${escapeHtml(incident.recommended_attention_level)}</p>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div class="result-column">
+                            <p class="summary-label">Occurrences</p>
+                            <p class="summary-value">${escapeHtml(String(incident.recurrence_count))}</p>
+                        </div>
+                        <div class="result-column">
+                            <p class="summary-label">Last seen</p>
+                            <p class="summary-value">${escapeHtml(lastSeen)}</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Trend: ${escapeHtml(incident.trend_direction)}</span>
+                        <span class="status-badge status-neutral">Events: ${escapeHtml(String(eventCount))}</span>
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+}
+
+function getIncidentSeverityClass(severitySummary) {
+    const summary = String(severitySummary || "").toLowerCase();
+    if (summary.includes("critical")) return "status-critical";
+    if (summary.includes("high")) return "status-elevated";
+    if (summary.includes("medium")) return "status-neutral";
+    return "status-success";
+}
+
+function formatDateTime(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return "--";
+    }
+
+    return new Intl.DateTimeFormat([], {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(date);
+}
+
+function renderHistoryTimeline() {
+    if (!state.history || state.history.length === 0) {
+        els["history-list"].innerHTML = `<div class="empty-state">No history events available.</div>`;
+        els["history-details"].innerHTML = `<div class="empty-state">Select an event to inspect a replay.</div>`;
+        return;
+    }
+
+    const items = state.history
+        .map((event) => {
+            const isActive = state.selectedHistoryEvent && state.selectedHistoryEvent.event_id === event.event_id;
+            return `
+                <button type="button" data-event-id="${escapeHtml(event.event_id)}" class="history-item ${isActive ? "history-item-active" : ""}">
+                    <div class="history-item-header">
+                        <span class="history-event-type">${escapeHtml(event.event_type)}</span>
+                        <span class="history-event-badge ${getHealthBadge(event.health_score)}">${escapeHtml(event.platform.toUpperCase())}</span>
+                    </div>
+                    <p class="history-item-copy">${escapeHtml(event.mode)} · ${escapeHtml(event.created_at)}</p>
+                    <div class="history-item-stats">
+                        <span>${escapeHtml(String(event.issue_count))} issues</span>
+                        <span>${escapeHtml(String(event.risk_score))} risk</span>
+                    </div>
+                </button>
+            `;
+        })
+        .join("");
+
+    els["history-list"].innerHTML = items;
+    els["history-list"].querySelectorAll("button[data-event-id]").forEach((button) => {
+        button.addEventListener("click", () => loadHistoryEventDetails(button.dataset.eventId));
+    });
+}
+
+function renderHistoryDetails(event) {
+    if (!event) {
+        els["history-details"].innerHTML = `<div class="empty-state">No event selected.</div>`;
+        return;
+    }
+
+    els["history-details"].innerHTML = `
+        <div class="history-details-shell">
+            <p class="section-kicker">Event Replay</p>
+            <h4 class="section-title">${escapeHtml(event.event_type)} · ${escapeHtml(event.platform)} / ${escapeHtml(event.mode)}</h4>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="result-column">
+                    <p class="summary-label">Recorded</p>
+                    <p class="summary-value">${escapeHtml(event.created_at)}</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Issues</p>
+                    <p class="summary-value">${escapeHtml(String(event.issue_count))}</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Health</p>
+                    <p class="summary-value">${escapeHtml(String(event.health_score))}</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Risk</p>
+                    <p class="summary-value">${escapeHtml(String(event.risk_score))}</p>
+                </div>
+            </div>
+            <div class="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                <pre class="history-json">${escapeHtml(JSON.stringify(event.payload, null, 2))}</pre>
+            </div>
+        </div>
+    `;
+}
+
+function getHealthBadge(healthScore) {
+    if (healthScore >= 85) return "status-success";
+    if (healthScore >= 55) return "status-neutral";
+    return "status-critical";
+}
+
 function normalizeData(action, payload) {
     if (action === "snapshot") {
         return {
             snapshot: payload,
             candidate_actions: [],
             allowed_actions: [],
+            remediation_strategies: [],
+            incident_states: [],
+            playbook_executions: [],
             dispatch: { executed_actions: [] },
             verification_results: [],
             view: action,
@@ -190,6 +492,9 @@ function renderAll() {
     const allowedActions = state.data.allowed_actions || [];
     const approvalRequiredActions = state.data.approval_required_actions || [];
     const blockedActions = state.data.blocked_actions || [];
+    const remediationStrategies = state.data.remediation_strategies || [];
+    const incidentStates = state.data.incident_states || [];
+    const playbookExecutions = state.data.playbook_executions || [];
     const executedActions = state.data.dispatch.executed_actions || [];
     const verificationResults = state.data.verification_results || [];
     const risk = computeRisk(snapshot);
@@ -199,10 +504,16 @@ function renderAll() {
     renderIssues(issues);
     renderProcesses(snapshot.processes || []);
     renderServices(snapshot.services || []);
+    renderBaselineSummary(snapshot.baseline_summary);
     renderPorts(snapshot.open_ports || []);
     renderLogs(snapshot.recent_logs || []);
     renderPlan(candidateActions, allowedActions, approvalRequiredActions, blockedActions);
     renderExecution(executedActions, verificationResults);
+    renderStrategies(remediationStrategies, incidentStates);
+    renderPlaybookExecutions(playbookExecutions);
+    renderApprovalCenter();
+    renderRuntimeObservation(snapshot.runtime_observation_trace || null, state.runtimeRecent || []);
+    renderHistoryTimeline();
 }
 
 function renderLoadingState(action) {
@@ -211,14 +522,24 @@ function renderLoadingState(action) {
         "issues-panel",
         "processes-panel",
         "services-panel",
+        "baseline-panel",
+        "runtime-tasks-panel",
+        "runtime-policy-panel",
+        "runtime-results-panel",
+        "runtime-recent-panel",
         "ports-panel",
         "logs-panel",
         "candidate-actions-panel",
         "allowed-actions-panel",
         "approval-required-actions-panel",
         "blocked-actions-panel",
+        "strategy-panel",
+        "incident-state-panel",
         "executed-actions-panel",
         "verification-panel",
+        "playbook-execution-panel",
+        "approval-queue-panel",
+        "approval-recent-panel",
     ].forEach((id) => {
         els[id].innerHTML = loadingBlock;
     });
@@ -234,20 +555,221 @@ function renderErrorState(message) {
         "issues-panel",
         "processes-panel",
         "services-panel",
+        "baseline-panel",
+        "runtime-tasks-panel",
+        "runtime-policy-panel",
+        "runtime-results-panel",
+        "runtime-recent-panel",
         "ports-panel",
         "logs-panel",
         "candidate-actions-panel",
         "allowed-actions-panel",
         "approval-required-actions-panel",
         "blocked-actions-panel",
+        "strategy-panel",
+        "incident-state-panel",
         "executed-actions-panel",
         "verification-panel",
+        "playbook-execution-panel",
+        "approval-queue-panel",
+        "approval-recent-panel",
     ].forEach((id) => {
         els[id].innerHTML = errorBlock;
     });
     els["status-pill"].textContent = "Attention";
     els["status-pill"].className = "status-pill status-critical";
     els["status-copy"].textContent = message;
+}
+
+function renderApprovalCenter() {
+    const approvals = state.approvals || [];
+    const decisions = state.approvalDecisions || [];
+    els["approval-pending-count"].textContent = `${approvals.length}`;
+    els["approval-recent-count"].textContent = `${decisions.length}`;
+    els["approval-meta"].textContent = approvals.length
+        ? `${approvals.length} pending operator approval request(s)`
+        : "No pending approval requests for the selected target";
+
+    if (!approvals.length) {
+        els["approval-queue-panel"].innerHTML = emptyState("Approval queue is clear.");
+    } else {
+        els["approval-queue-panel"].innerHTML = approvals
+            .map((item) => {
+                const request = item.request || {};
+                return `
+                    <article class="approval-card">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">${escapeHtml(item.incident_title || request.incident_key)}</p>
+                                <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(request.action_type || "unknown_action")}</h4>
+                            </div>
+                            <span class="status-badge status-warning">${escapeHtml(request.status || "pending")}</span>
+                        </div>
+                        <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(request.justification_summary || request.policy_reason || "No justification provided.")}</p>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span class="status-badge status-neutral">Playbook: ${escapeHtml(item.playbook_name || request.playbook_id || "unknown")}</span>
+                            <span class="status-badge status-neutral">Step: ${escapeHtml(item.step_name || request.step_id || "unknown")}</span>
+                            <span class="status-badge status-neutral">Risk: ${escapeHtml(request.risk_tier || "unknown")}</span>
+                            <span class="status-badge status-neutral">Confidence: ${escapeHtml(formatConfidence(request.action_confidence || 0))}</span>
+                            <span class="status-badge status-neutral">Created: ${escapeHtml(formatDateTime(new Date(request.created_at)))}</span>
+                        </div>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <button type="button" class="btn-primary btn-approve" data-request-id="${escapeHtml(request.request_id)}">Approve</button>
+                            <button type="button" class="btn-danger btn-deny" data-request-id="${escapeHtml(request.request_id)}">Deny</button>
+                        </div>
+                    </article>
+                `;
+            })
+            .join("");
+
+        els["approval-queue-panel"].querySelectorAll(".btn-approve").forEach((button) => {
+            button.addEventListener("click", () => handleApprovalDecision(button.dataset.requestId, "approve"));
+        });
+        els["approval-queue-panel"].querySelectorAll(".btn-deny").forEach((button) => {
+            button.addEventListener("click", () => handleApprovalDecision(button.dataset.requestId, "deny"));
+        });
+    }
+
+    if (!decisions.length) {
+        els["approval-recent-panel"].innerHTML = emptyState("No recent approval decisions recorded.");
+    } else {
+        els["approval-recent-panel"].innerHTML = decisions
+            .map((decision) => `
+                <article class="approval-decision-card">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <h4 class="text-lg font-semibold text-white">${escapeHtml(decision.operator_action)}</h4>
+                        <span class="status-badge ${decision.operator_action === "approve" ? "status-success" : "status-unhealthy"}">${escapeHtml(decision.resulting_status)}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(decision.decision_reason || "No reason provided.")}</p>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Request: ${escapeHtml(decision.request_id)}</span>
+                        <span class="status-badge status-neutral">At: ${escapeHtml(formatDateTime(new Date(decision.decided_at)))}</span>
+                    </div>
+                </article>
+            `)
+            .join("");
+    }
+}
+
+async function handleApprovalDecision(requestId, action) {
+    const actionLabel = action === "approve" ? "approve" : "deny";
+    const defaultReason =
+        action === "approve"
+            ? "Operator approved this remediation step after review."
+            : "Operator denied this remediation step pending further investigation.";
+    const decisionReason = window.prompt(`Reason to ${actionLabel} request ${requestId}:`, defaultReason);
+    if (!decisionReason || !decisionReason.trim()) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/approvals/${encodeURIComponent(requestId)}/${action}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            },
+            body: JSON.stringify({ decision_reason: decisionReason.trim() }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `Approval decision failed with status ${response.status}`);
+        }
+        setBanner(`Approval ${actionLabel}d for request ${requestId}.`, "info");
+        await loadView(state.lastAction);
+    } catch (error) {
+        setBanner(error.message || "Unable to submit approval decision.", "error");
+    }
+}
+
+function renderRuntimeObservation(trace, recentBatches) {
+    if (!trace) {
+        els["runtime-meta"].textContent = "No runtime observation trace for current snapshot";
+        els["runtime-tasks-panel"].innerHTML = emptyState("Runtime observation trace is available for macOS live mode snapshots.");
+        els["runtime-policy-panel"].innerHTML = emptyState("No command policy decisions for this snapshot.");
+        els["runtime-results-panel"].innerHTML = emptyState("No command invocation results for this snapshot.");
+    } else {
+        const taskCount = (trace.tasks || []).length;
+        const decisionCount = (trace.policy_decisions || []).length;
+        const resultCount = (trace.results || []).length;
+        const partialFailure = Boolean(trace.batch?.partial_failure);
+        els["runtime-meta"].textContent = `Batch ${trace.batch?.batch_id || "unknown"} · ${taskCount} tasks · ${resultCount} command results${partialFailure ? " · partial failure" : ""}`;
+
+        els["runtime-tasks-panel"].innerHTML = (trace.tasks || []).length
+            ? (trace.tasks || [])
+                .map((task) => `
+                    <article class="runtime-card">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h4 class="text-lg font-semibold text-white">${escapeHtml(task.task_name)}</h4>
+                            <span class="status-badge ${task.status === "success" ? "status-success" : task.status === "partial_failure" ? "status-warning" : "status-unhealthy"}">${escapeHtml(task.status)}</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-300">${escapeHtml(task.status_reason || "No task status reason.")}</p>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span class="status-badge status-neutral">Task ID: ${escapeHtml(task.task_id)}</span>
+                            <span class="status-badge status-neutral">Parsed: ${escapeHtml(task.parsed_artifact_type || "none")}</span>
+                        </div>
+                    </article>
+                `)
+                .join("")
+            : emptyState("No observation tasks were recorded.");
+
+        els["runtime-policy-panel"].innerHTML = decisionCount
+            ? (trace.policy_decisions || [])
+                .slice(0, 20)
+                .map((decision) => `
+                    <article class="runtime-card">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h4 class="text-lg font-semibold text-white">${escapeHtml(decision.command_name)} ${escapeHtml((decision.args || []).join(" "))}</h4>
+                            <span class="status-badge ${decision.allowed ? "status-success" : "status-unhealthy"}">${decision.allowed ? "allowed" : "blocked"}</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-300">${escapeHtml(decision.reason)}</p>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span class="status-badge status-neutral">Safety: ${escapeHtml(decision.safety_class || "unknown")}</span>
+                            <span class="status-badge status-neutral">${escapeHtml(decision.platform)} / ${escapeHtml(decision.mode)}</span>
+                        </div>
+                    </article>
+                `)
+                .join("")
+            : emptyState("No command policy decisions available.");
+
+        els["runtime-results-panel"].innerHTML = resultCount
+            ? (trace.results || [])
+                .slice(0, 20)
+                .map((result) => `
+                    <article class="runtime-card">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h4 class="text-lg font-semibold text-white">${escapeHtml(result.command_name)} ${escapeHtml((result.args || []).join(" "))}</h4>
+                            <span class="status-badge ${result.success ? "status-success" : "status-unhealthy"}">${result.success ? "success" : "failed"}</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-300">${escapeHtml(result.parsed_artifact_summary || result.stdout_summary || "No parsed summary.")}</p>
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span class="status-badge status-neutral">Invocation: ${escapeHtml(result.invocation_id)}</span>
+                            <span class="status-badge status-neutral">Exit: ${escapeHtml(String(result.exit_code))}</span>
+                            <span class="status-badge status-neutral">Artifact: ${escapeHtml(result.parsed_artifact_type || "none")}</span>
+                        </div>
+                    </article>
+                `)
+                .join("")
+            : emptyState("No command result rows recorded.");
+    }
+
+    els["runtime-recent-panel"].innerHTML = recentBatches && recentBatches.length
+        ? recentBatches
+            .map((batchTrace) => `
+                <article class="runtime-card">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h4 class="text-lg font-semibold text-white">${escapeHtml(batchTrace.batch?.batch_id || "unknown")}</h4>
+                        <span class="status-badge ${batchTrace.batch?.partial_failure ? "status-warning" : "status-success"}">${batchTrace.batch?.partial_failure ? "partial failure" : "success"}</span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Tasks: ${escapeHtml(String(batchTrace.batch?.task_count || 0))}</span>
+                        <span class="status-badge status-neutral">Commands: ${escapeHtml(String((batchTrace.results || []).length))}</span>
+                        <span class="status-badge status-neutral">Started: ${escapeHtml(formatDateTime(new Date(batchTrace.batch?.requested_at)))}</span>
+                    </div>
+                </article>
+            `)
+            .join("")
+        : emptyState("No recent runtime observation batches persisted.");
 }
 
 function renderHero(snapshot, risk, issues, candidateActions, allowedActions) {
@@ -327,6 +849,7 @@ function renderIssues(issues) {
                         <span class="status-badge status-neutral">Confidence: ${escapeHtml(formatConfidence(issue.confidence))}</span>
                         <span class="status-badge status-neutral">ID: ${escapeHtml(issue.id || "n/a")}</span>
                     </div>
+                    ${renderIssueAnomalySection(issue)}
                 </article>
             `;
         })
@@ -396,6 +919,106 @@ function renderServices(services) {
             `;
         })
         .join("");
+}
+
+function renderBaselineSummary(summary) {
+    if (!summary || !summary.host_baseline) {
+        els["baseline-meta"].textContent = "No baseline data available yet.";
+        els["baseline-panel"].innerHTML = emptyState("Baseline modeling requires prior historical snapshots.");
+        return;
+    }
+
+    const baseline = summary.host_baseline;
+    const comparisons = summary.baseline_comparisons || [];
+    const signals = summary.deviation_signals || [];
+    const anomalyScore = summary.anomaly_score != null ? `${summary.anomaly_score * 100}%` : "0%";
+
+    els["baseline-meta"].textContent = `${signals.length} anomaly signal${signals.length === 1 ? "" : "s"} detected`;
+    els["baseline-panel"].innerHTML = `
+        <div class="baseline-card">
+            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Baseline host</p>
+            <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(baseline.hostname || baseline.platform)}</h4>
+            <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(baseline.event_count)} recent event${baseline.event_count === 1 ? "" : "s"} used for baseline.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="result-column">
+                    <p class="summary-label">Avg CPU</p>
+                    <p class="summary-value">${escapeHtml(baseline.avg_cpu_percent.toFixed(1))}%</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Avg Memory</p>
+                    <p class="summary-value">${escapeHtml(baseline.avg_memory_used_mb.toFixed(0))} MB</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Avg Disk</p>
+                    <p class="summary-value">${escapeHtml(baseline.avg_disk_usage_percent.toFixed(1))}%</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Avg Risk</p>
+                    <p class="summary-value">${escapeHtml(baseline.avg_risk_score.toFixed(1))}</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Avg Health</p>
+                    <p class="summary-value">${escapeHtml(baseline.avg_health_score.toFixed(1))}</p>
+                </div>
+                <div class="result-column">
+                    <p class="summary-label">Anomaly Score</p>
+                    <p class="summary-value">${escapeHtml(anomalyScore)}</p>
+                </div>
+            </div>
+        </div>
+        <div class="baseline-card baseline-card-details">
+            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Deviation overview</p>
+            <div class="mt-4 space-y-3">
+                ${comparisons
+                    .map(
+                        (comparison) => `
+                            <div class="baseline-compare-row">
+                                <span>${escapeHtml(comparison.metric)}</span>
+                                <span>${escapeHtml(String(comparison.current_value))} → ${escapeHtml(String(comparison.baseline_value))}</span>
+                            </div>
+                        `
+                    )
+                    .join("")}
+                ${signals.length
+                    ? signals
+                          .map(
+                              (signal) => `
+                                  <div class="baseline-signal-row">
+                                      <span class="signal-pill signal-pill-${escapeHtml(signal.severity)}">${escapeHtml(signal.signal_type)}</span>
+                                      <span>${escapeHtml(signal.description)}</span>
+                                  </div>
+                              `
+                          )
+                          .join("")
+                    : `<div class="empty-state">No baseline deviations detected.</div>`}
+            </div>
+        </div>
+        <div class="baseline-card baseline-card-summary">
+            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Host norms</p>
+            <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(baseline.common_process_names.slice(0, 5).join(", ") || "No stable process pattern")}</p>
+            <p class="mt-4 text-sm leading-6 text-slate-300">Healthy services: ${escapeHtml(baseline.healthy_service_names.slice(0, 5).join(", ") || "No stable healthy services")}</p>
+        </div>
+    `;
+}
+
+function renderIssueAnomalySection(issue) {
+    const anomalyReason = issue.anomaly_reason || (issue.anomaly_context?.anomaly_reasons || []).join("; ");
+    const deviationScore = issue.deviation_score != null ? issue.deviation_score : issue.anomaly_context?.deviation_score;
+    const baselineSummary = issue.baseline_summary || issue.anomaly_context?.baseline_comparisons?.map((c) => c.metric).join(", ");
+
+    if (!anomalyReason && !deviationScore) {
+        return "";
+    }
+
+    return `
+        <div class="issue-anomaly-card">
+            ${anomalyReason ? `<p class="issue-anomaly-reason">${escapeHtml(anomalyReason)}</p>` : ""}
+            <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                ${deviationScore ? `<span class="status-badge status-warning">Deviation: ${escapeHtml(String(deviationScore))}</span>` : ""}
+                ${baselineSummary ? `<span class="status-badge status-success">Baseline: ${escapeHtml(baselineSummary)}</span>` : ""}
+            </div>
+        </div>
+    `;
 }
 
 function renderPorts(ports) {
@@ -507,6 +1130,170 @@ function renderExecution(executedActions, verificationResults) {
     }
 }
 
+function renderStrategies(strategies, incidentStates) {
+    els["strategy-count"].textContent = `${strategies.length}`;
+    els["incident-state-count"].textContent = `${incidentStates.length}`;
+
+    if (!strategies.length) {
+        els["strategy-panel"].innerHTML = emptyState("No remediation strategy selected for the current view.");
+    } else {
+        els["strategy-panel"].innerHTML = strategies
+            .map((strategy) => {
+                const steps = (strategy.playbook?.steps || [])
+                    .map((step) => {
+                        const statusClass = `step-status-${(step.status || "pending").replace(/_/g, "-")}`;
+                        return `
+                            <li class="strategy-step ${statusClass}">
+                                <div class="flex items-center justify-between gap-3">
+                                    <span class="font-semibold text-white">${escapeHtml(step.name || step.step_id)}</span>
+                                    <span class="status-badge status-neutral">${escapeHtml(step.status || "pending")}</span>
+                                </div>
+                                <p class="mt-2 text-sm leading-6 text-slate-300">${escapeHtml(step.description || "")}</p>
+                                <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                                    ${step.action_type ? `<span class="status-badge status-neutral">Action: ${escapeHtml(step.action_type)}</span>` : ""}
+                                    ${step.execution_mode ? `<span class="status-badge status-neutral">Mode: ${escapeHtml(step.execution_mode)}</span>` : ""}
+                                    ${step.risk_tier ? `<span class="status-badge status-neutral">Risk: ${escapeHtml(step.risk_tier)}</span>` : ""}
+                                    ${step.approval_required ? `<span class="status-badge status-warning">Approval Required</span>` : ""}
+                                </div>
+                                ${step.policy_reason ? `<p class="mt-2 text-xs text-slate-400">${escapeHtml(step.policy_reason)}</p>` : ""}
+                            </li>
+                        `;
+                    })
+                    .join("");
+                return `
+                    <article class="strategy-card">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">${escapeHtml(strategy.issue_type)}</p>
+                                <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(strategy.playbook?.name || "Playbook")}</h4>
+                            </div>
+                            <span class="status-badge status-neutral">Priority: ${escapeHtml(String(strategy.priority_score ?? "--"))}</span>
+                        </div>
+                        <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(strategy.selection_reason || "Strategy selected deterministically.")}</p>
+                        <ol class="mt-4 space-y-3">${steps}</ol>
+                    </article>
+                `;
+            })
+            .join("");
+    }
+
+    if (!incidentStates.length) {
+        els["incident-state-panel"].innerHTML = emptyState("No incident state-machine data available.");
+        return;
+    }
+
+    els["incident-state-panel"].innerHTML = incidentStates
+        .map((incidentState) => {
+            const transitions = (incidentState.transitions || [])
+                .map(
+                    (transition) => `
+                        <li class="transition-item">
+                            <div class="transition-head">
+                                <span>${escapeHtml(transition.from_state)} → ${escapeHtml(transition.to_state)}</span>
+                                <span class="text-slate-500">${escapeHtml(transition.step_id)}</span>
+                            </div>
+                            <p class="text-sm text-slate-300">${escapeHtml(transition.reason)}</p>
+                        </li>
+                    `
+                )
+                .join("");
+
+            return `
+                <article class="incident-state-card">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h4 class="text-lg font-semibold text-white">${escapeHtml(incidentState.issue_type)} · ${escapeHtml(incidentState.incident_key)}</h4>
+                        <span class="status-badge ${getIncidentStateClass(incidentState.current_state)}">${escapeHtml(incidentState.current_state)}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(incidentState.transition_reason || "No transition reason provided.")}</p>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Previous: ${escapeHtml(incidentState.previous_state || "none")}</span>
+                        <span class="status-badge status-neutral">Next: ${escapeHtml((incidentState.allowed_transitions || []).join(", ") || "none")}</span>
+                    </div>
+                    <ol class="mt-4 space-y-2 transition-list">${transitions || `<li class="empty-state">No transitions recorded.</li>`}</ol>
+                </article>
+            `;
+        })
+        .join("");
+}
+
+function renderPlaybookExecutions(playbookExecutions) {
+    els["playbook-execution-count"].textContent = `${playbookExecutions.length}`;
+    if (!playbookExecutions.length) {
+        els["playbook-execution-panel"].innerHTML = emptyState("No playbook execution timeline available. Load execute view to simulate.");
+        return;
+    }
+
+    els["playbook-execution-panel"].innerHTML = playbookExecutions
+        .map((execution) => {
+            const checkpoints = (execution.verification_checkpoints || [])
+                .map((checkpoint) => {
+                    const verifiedClass =
+                        checkpoint.verified === true
+                            ? "status-verified"
+                            : checkpoint.verified === false
+                                ? "status-unhealthy"
+                                : "status-neutral";
+                    const verifiedLabel =
+                        checkpoint.verified === true
+                            ? "verified"
+                            : checkpoint.verified === false
+                                ? "failed"
+                                : "pending";
+                    return `
+                        <li class="checkpoint-item">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="font-semibold text-white">${escapeHtml(checkpoint.step_id)}</span>
+                                <span class="status-badge ${verifiedClass}">${escapeHtml(verifiedLabel)}</span>
+                            </div>
+                            <p class="mt-2 text-sm text-slate-300">${escapeHtml(checkpoint.reason || checkpoint.success_condition)}</p>
+                        </li>
+                    `;
+                })
+                .join("");
+
+            const transitions = (execution.transitions || [])
+                .map(
+                    (transition) => `
+                        <li class="transition-item">
+                            <div class="transition-head">
+                                <span>${escapeHtml(transition.from_state)} → ${escapeHtml(transition.to_state)}</span>
+                                <span class="text-slate-500">${escapeHtml(transition.step_id)}</span>
+                            </div>
+                            <p class="text-sm text-slate-300">${escapeHtml(transition.reason)}</p>
+                        </li>
+                    `
+                )
+                .join("");
+
+            return `
+                <article class="playbook-execution-card">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h4 class="text-lg font-semibold text-white">${escapeHtml(execution.playbook_id)}</h4>
+                        <span class="status-badge ${getIncidentStateClass(execution.current_state)}">${escapeHtml(execution.current_state)}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(execution.transition_reason || "No transition reason available.")}</p>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Current step: ${escapeHtml(execution.current_step_id || "none")}</span>
+                        <span class="status-badge status-neutral">Completed: ${escapeHtml(String((execution.completed_step_ids || []).length))}</span>
+                        <span class="status-badge status-neutral">Failed: ${escapeHtml(String((execution.failed_step_ids || []).length))}</span>
+                        <span class="status-badge status-neutral">Blocked: ${escapeHtml(String((execution.blocked_step_ids || []).length))}</span>
+                    </div>
+                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                        <div>
+                            <p class="section-kicker">Verification Checkpoints</p>
+                            <ul class="mt-3 space-y-2">${checkpoints || `<li class="empty-state">No checkpoints recorded.</li>`}</ul>
+                        </div>
+                        <div>
+                            <p class="section-kicker">Transition Timeline</p>
+                            <ol class="mt-3 space-y-2 transition-list">${transitions || `<li class="empty-state">No transitions recorded.</li>`}</ol>
+                        </div>
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+}
+
 function renderActionList(actions, emptyMessage) {
     if (!actions.length) {
         return emptyState(emptyMessage);
@@ -560,6 +1347,14 @@ function computeRisk(snapshot) {
         return { score, label: "Elevated", statusClass: "status-elevated" };
     }
     return { score, label: "Stable", statusClass: "status-stable" };
+}
+
+function getIncidentStateClass(state) {
+    const normalized = String(state || "").toLowerCase();
+    if (normalized === "closed" || normalized === "verified" || normalized === "approved") return "status-success";
+    if (normalized === "approval_pending" || normalized === "planned" || normalized === "analyzed") return "status-warning";
+    if (normalized === "blocked" || normalized === "failed") return "status-unhealthy";
+    return "status-neutral";
 }
 
 function setBanner(message, type) {

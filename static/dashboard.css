@@ -241,6 +241,7 @@ body {
 .action-card,
 .execution-card,
 .verification-card,
+.runtime-card,
 .empty-state,
 .port-cloud,
 .feedback-error,
@@ -255,6 +256,7 @@ body {
 .action-card,
 .execution-card,
 .verification-card,
+.runtime-card,
 .empty-state {
     padding: 1rem;
 }
@@ -277,6 +279,75 @@ body {
     border-color: rgba(56, 189, 248, 0.22);
 }
 
+.issue-anomaly-card,
+.baseline-card {
+    border-radius: 22px;
+    padding: 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+}
+
+.issue-anomaly-card {
+    margin-top: 1rem;
+    background: rgba(15, 23, 42, 0.85);
+}
+
+.issue-anomaly-reason {
+    color: rgba(248, 113, 113, 0.95);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.baseline-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.baseline-compare-row,
+.baseline-signal-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 14px;
+    padding: 0.75rem 0.9rem;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.signal-pill {
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.signal-pill-high {
+    background: rgba(251, 113, 133, 0.16);
+    color: #fda4af;
+}
+
+.signal-pill-medium {
+    background: rgba(249, 168, 37, 0.16);
+    color: #facc15;
+}
+
+.signal-pill-low {
+    background: rgba(52, 211, 153, 0.14);
+    color: #a7f3d0;
+}
+
+.baseline-card-summary {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.issue-card-low {
+    border-color: rgba(56, 189, 248, 0.22);
+}
+
 .severity-badge,
 .status-badge,
 .policy-badge {
@@ -291,17 +362,84 @@ body {
     letter-spacing: 0.15em;
 }
 
-.severity-high,
-.policy-denied,
-.status-unhealthy {
-    background: rgba(251, 113, 133, 0.14);
-    color: rgba(254, 205, 211, 0.95);
+.history-item {
+    width: 100%;
+    text-align: left;
+    border-radius: 22px;
+    padding: 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+    cursor: pointer;
 }
 
-.severity-critical {
-    background: rgba(244, 63, 94, 0.18);
-    color: rgba(255, 228, 230, 0.98);
-    border: 1px solid rgba(251, 113, 133, 0.24);
+.history-item:hover,
+.history-item-active {
+    border-color: rgba(94, 234, 212, 0.24);
+    background: rgba(15, 23, 42, 0.88);
+    transform: translateY(-1px);
+}
+
+.history-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.history-event-type {
+    font-weight: 700;
+    color: #fff;
+}
+
+.history-item-copy,
+.history-item-stats {
+    color: rgba(203, 213, 225, 0.78);
+    font-size: 0.87rem;
+    margin: 0.15rem 0 0;
+}
+
+.history-item-stats {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.95rem;
+}
+
+.incident-card {
+    width: 100%;
+    border-radius: 22px;
+    padding: 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+}
+
+.incident-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.incident-card:hover {
+    border-color: rgba(94, 234, 212, 0.24);
+    background: rgba(15, 23, 42, 0.88);
+}
+
+.history-details-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.history-json {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.8rem;
+    color: rgba(203, 213, 225, 0.92);
+    max-height: 420px;
+    overflow: auto;
 }
 
 .severity-medium {
@@ -321,6 +459,73 @@ body {
 .status-neutral {
     background: rgba(148, 163, 184, 0.14);
     color: rgba(226, 232, 240, 0.88);
+}
+
+.status-warning {
+    background: rgba(245, 158, 11, 0.16);
+    color: rgba(253, 230, 138, 0.95);
+}
+
+.status-unhealthy,
+.policy-denied {
+    background: rgba(251, 113, 133, 0.16);
+    color: rgba(254, 205, 211, 0.95);
+}
+
+.strategy-card,
+.incident-state-card,
+.playbook-execution-card,
+.approval-card,
+.approval-decision-card {
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+    padding: 1rem;
+}
+
+.strategy-step,
+.checkpoint-item,
+.transition-item {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.75rem;
+}
+
+.step-status-ready {
+    border-color: rgba(52, 211, 153, 0.35);
+}
+
+.step-status-approval-pending {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.step-status-blocked,
+.step-status-failed {
+    border-color: rgba(251, 113, 133, 0.35);
+}
+
+.step-status-verified,
+.step-status-completed {
+    border-color: rgba(52, 211, 153, 0.45);
+}
+
+.transition-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.transition-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: rgba(203, 213, 225, 0.9);
+    margin-bottom: 0.35rem;
 }
 
 .process-table {
