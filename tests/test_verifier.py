@@ -13,6 +13,8 @@ def test_verifier_marks_successful_simulated_actions_as_verified():
         executed=True,
         success=True,
         message="Simulated process inspection completed",
+        execution_message="Simulated process inspection completed",
+        execution_stage="simulation",
     )
 
     result = verifier.verify(execution_result)

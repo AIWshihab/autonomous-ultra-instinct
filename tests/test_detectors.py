@@ -49,8 +49,8 @@ def test_detector_creates_disk_pressure_issue():
     assert issue.priority_score > 0
     assert issue.evidence == ["disk usage is 93.0%"]
     assert issue.detection_reason == "Disk usage exceeded the V1 threshold of 90%."
-    assert issue.severity_reason == "Disk usage at or above 95% is classified as critical."
-    assert issue.confidence_reason == "Disk percentage is a direct measured signal."
+    assert issue.severity_reason == "Disk usage above 90% is classified as high severity."
+    assert issue.confidence_reason == "Disk usage is a direct measured signal from the snapshot."
 
 
 def test_detector_creates_critical_disk_pressure_issue_at_95_percent():
@@ -76,9 +76,9 @@ def test_detector_creates_service_down_issue():
     assert issue.severity == "high"
     assert issue.confidence == 0.96
     assert issue.evidence == ["service ssh status=failed"]
-    assert issue.detection_reason == "A monitored service is not healthy."
-    assert issue.severity_reason == "Service unavailability is high severity in V1."
-    assert issue.confidence_reason == "Service status is directly observable."
+    assert issue.detection_reason == "A monitored service is not in a healthy running state."
+    assert issue.severity_reason == "Service interruption is classified as high severity in V1."
+    assert issue.confidence_reason == "Service status is directly observable from the health signal."
 
 
 def test_detector_creates_crash_loop_issue():

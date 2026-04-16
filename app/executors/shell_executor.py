@@ -14,6 +14,7 @@ class ShellExecutor:
     def execute(self, action: Action) -> ExecutionResult:
         dispatch_reason = action.dispatch_reason or "Dispatch decision not recorded."
         if action.allowed is not True or action.execution_mode == "blocked":
+            message = "Skipped because the action was blocked by policy."
             return ExecutionResult(
                 action_id=action.id,
                 issue_id=action.issue_id,
@@ -22,12 +23,15 @@ class ShellExecutor:
                 allowed=False,
                 executed=False,
                 success=False,
-                message="Skipped because the action was blocked by policy.",
+                message=message,
+                execution_message=message,
+                execution_stage="skipped",
                 dispatch_reason=dispatch_reason,
             )
 
         message = self.simulation_messages.get(action.action_type)
         if message is None:
+            message = "Simulation for this action type is not implemented."
             return ExecutionResult(
                 action_id=action.id,
                 issue_id=action.issue_id,
@@ -36,7 +40,9 @@ class ShellExecutor:
                 allowed=True,
                 executed=False,
                 success=False,
-                message="Simulation for this action type is not implemented.",
+                message=message,
+                execution_message=message,
+                execution_stage="simulation_unavailable",
                 dispatch_reason=dispatch_reason,
             )
 
@@ -49,5 +55,7 @@ class ShellExecutor:
             executed=True,
             success=True,
             message=message,
+            execution_message=message,
+            execution_stage="simulated_execution",
             dispatch_reason=dispatch_reason,
         )

@@ -19,5 +19,5 @@ def test_dispatcher_sets_dispatch_reason_on_actions():
     dispatch_result = dispatcher.dispatch(actions)
 
     assert len(dispatch_result.actions) == 1
-    assert dispatch_result.actions[0].dispatch_reason == "Allowed because the action is safe to simulate and not blocked by policy."
-    assert dispatch_result.executed_actions[0].dispatch_reason == "Allowed because the action is safe to simulate and not blocked by policy."
+    assert dispatch_result.actions[0].dispatch_reason == "Allowed by policy and safe to simulate."
+    assert dispatch_result.executed_actions[0].dispatch_reason == "Allowed by policy and safe to simulate."

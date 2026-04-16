@@ -70,8 +70,12 @@ class RuleBasedDetector(BaseDetector):
                 score=score,
                 evidence=evidence,
                 detection_reason="Disk usage exceeded the V1 threshold of 90%.",
-                severity_reason="Disk usage at or above 95% is classified as critical.",
-                confidence_reason="Disk percentage is a direct measured signal.",
+                severity_reason=(
+                    "Disk usage at or above 95% is classified as critical."
+                    if snapshot.resources.disk_usage_percent >= 95.0
+                    else "Disk usage above 90% is classified as high severity."
+                ),
+                confidence_reason="Disk usage is a direct measured signal from the snapshot.",
             )
         ]
 
@@ -90,9 +94,9 @@ class RuleBasedDetector(BaseDetector):
                     target=service.name,
                     score=score,
                     evidence=[f"service {service.name} status={service.status}"],
-                    detection_reason="A monitored service is not healthy.",
-                    severity_reason="Service unavailability is high severity in V1.",
-                    confidence_reason="Service status is directly observable.",
+                    detection_reason="A monitored service is not in a healthy running state.",
+                    severity_reason="Service interruption is classified as high severity in V1.",
+                    confidence_reason="Service status is directly observable from the health signal.",
                 )
             )
         return issues
@@ -154,6 +158,9 @@ class RuleBasedDetector(BaseDetector):
             if not any(token in process_name for token in self.suspicious_process_tokens):
                 continue
             score = self.scoring_engine.score_suspicious_process(process)
+            matched_token = next(
+                token for token in self.suspicious_process_tokens if token in process_name
+            )
             issues.append(
                 self._build_issue(
                     id=f"suspicious-process-{index:03d}",
@@ -162,10 +169,10 @@ class RuleBasedDetector(BaseDetector):
                     description=f"{process.name} matched the conservative suspicious-process rule set.",
                     target=f"pid:{process.pid}",
                     score=score,
-                    evidence=[f"process name is {process.name}"],
-                    detection_reason="A monitored process name matched the suspicious V1 token list.",
+                    evidence=[f"process name contains suspicious token '{matched_token}'"],
+                    detection_reason="A monitored process name matched a conservative suspicious token.",
                     severity_reason="Suspicious process markers are classified as high risk in V1.",
-                    confidence_reason="Process metadata is directly observable.",
+                    confidence_reason="Process metadata is directly observable from the process list.",
                 )
             )
         return issues
@@ -182,7 +189,7 @@ class RuleBasedDetector(BaseDetector):
 
         for index, (port, evidence_count) in enumerate(sorted(evidence_by_port.items()), start=1):
             score = self.scoring_engine.score_port_conflict(evidence_count)
-            evidence = [f"log evidence for port {port}: {evidence_count} entries"]
+            evidence = [f"log evidence for port {port}: {evidence_count} matching entries"]
             issues.append(
                 self._build_issue(
                     id=f"port-conflict-{index:03d}",
@@ -192,9 +199,9 @@ class RuleBasedDetector(BaseDetector):
                     target=f"port:{port}",
                     score=score,
                     evidence=evidence,
-                    detection_reason="Recent logs include port conflict patterns.",
-                    severity_reason="Repeated conflict logs increase severity in V1.",
-                    confidence_reason="Log pattern matching is a direct observed signal.",
+                    detection_reason="Recent logs include explicit port conflict patterns.",
+                    severity_reason="Repeated conflict logs are classified as elevated severity in V1.",
+                    confidence_reason="Log pattern matching is a directly observed signal from recent logs.",
                 )
             )
         return issues

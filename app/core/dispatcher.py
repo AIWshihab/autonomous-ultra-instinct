@@ -16,7 +16,7 @@ class Dispatcher:
 
         for action in actions:
             if action.allowed is True and action.execution_mode != "blocked":
-                dispatch_reason = "Allowed because the action is safe to simulate and not blocked by policy."
+                dispatch_reason = "Allowed by policy and safe to simulate."
                 dispatched_action = action.model_copy(update={"dispatch_reason": dispatch_reason})
                 execution_results.append(self.executor.execute(dispatched_action))
                 dispatched_actions.append(dispatched_action)

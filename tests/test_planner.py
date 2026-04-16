@@ -16,9 +16,11 @@ def test_planner_creates_actions_for_issues():
 
     actions = planner.plan(issues)
 
-    assert len(actions) == 2
+    assert len(actions) == 4
     assert {action.action_type for action in actions} == {
         "inspect_port_usage",
+        "inspect_process",
+        "collect_forensic_snapshot",
         "stop_conflicting_process",
     }
     assert all(action.issue_id == "issue-2" for action in actions)
@@ -53,3 +55,27 @@ def test_planner_prioritizes_higher_priority_issues_first():
     actions = planner.plan(issues)
 
     assert actions[0].issue_id == "issue-high"
+
+
+def test_planner_builds_remediation_strategy_for_issue():
+    planner = Planner()
+    issues = [
+        Issue(
+            id="issue-service",
+            type="SERVICE_DOWN",
+            category="service",
+            description="service unavailable",
+            target="nginx",
+            priority_score=90,
+        )
+    ]
+
+    actions, strategies = planner.plan_with_strategies(issues)
+
+    assert actions
+    assert len(strategies) == 1
+    strategy = strategies[0]
+    assert strategy.issue_type == "SERVICE_DOWN"
+    assert strategy.playbook.playbook_id == "service-down-v1"
+    assert strategy.selection_reason
+    assert strategy.playbook.steps

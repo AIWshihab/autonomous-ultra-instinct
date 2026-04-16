@@ -1,6 +1,218 @@
 {
-  "active": {
-    "type": "empty"
+  "main": {
+    "id": "8bb34f4d2350220a",
+    "type": "split",
+    "children": [
+      {
+        "id": "e7f140e336fe0ba8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1b4f6bc663bd6a53",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
   },
-  "openFiles": []
+  "left": {
+    "id": "d4057cf6b1fa013d",
+    "type": "split",
+    "children": [
+      {
+        "id": "8912d29d9d5d05e3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c8b630fd106e6a22",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "74baea73b53e3993",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "cad3a12353b000b6",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "e6a772e7ca36ef21",
+    "type": "split",
+    "children": [
+      {
+        "id": "3673382476352cbb",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "510e9e2755fbbdaa",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "b96e1da8bd9575d3",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "80fedc6aecfc5599",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "701d975556d9fa46",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "6c7b42a056bfc247",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "1b4f6bc663bd6a53",
+  "lastOpenFiles": [
+    "tests/__pycache__/test_runtime_observation.cpython-314-pytest-9.0.3.pyc",
+    "tests/__pycache__/test_verifier.cpython-314.pyc",
+    "tests/__pycache__/test_ui.cpython-314.pyc",
+    "tests/__pycache__/test_state_manager.cpython-314.pyc",
+    "tests/__pycache__/test_runtime_observation.cpython-314.pyc",
+    "tests/__pycache__/test_policy_engine.cpython-314.pyc",
+    "tests/__pycache__/test_playbook_engine.cpython-314.pyc",
+    "tests/__pycache__/test_planner.cpython-314.pyc",
+    "tests/__pycache__/test_macos_adapter.cpython-314.pyc",
+    "tests/__pycache__/test_history.cpython-314.pyc",
+    "tests/__pycache__/test_dispatcher_reason.cpython-314.pyc",
+    "docs/obsidian/Session Build Log - Step 16.md",
+    "docs/obsidian/Runtime Command Policy.md",
+    "docs/obsidian/macOS Live Observation Pipeline.md",
+    "docs/obsidian/Allowlisted Runtime Observation.md",
+    "docs/obsidian/Command Orchestration Model.md",
+    "docs/obsidian/Session Build Log - Step 15.md",
+    "docs/obsidian/Approval State Transitions.md",
+    "docs/obsidian/Human in the Loop Safety Model.md",
+    "docs/obsidian/Operator Control Plane.md",
+    "docs/obsidian/Approval Workflow Design.md",
+    "Notes/Policy Matrix.md",
+    "Notes/Project Notes.md",
+    "Audit Trail Design.md",
+    "docs/obsidian/Session Build Log - Step 14.md",
+    "docs/obsidian/Strategy Selection Rules.md",
+    "docs/obsidian/Verification Checkpoint Design.md",
+    "docs/obsidian/Incident State Machine.md",
+    "docs/obsidian/Remediation Playbook Model.md",
+    "docs/obsidian/Session Build Log - Step 11.md",
+    "docs/obsidian/SQLite Persistence Design.md",
+    "docs/obsidian/Timeline and Incident Replay.md",
+    "docs/obsidian/Event History Model.md",
+    "Notes/Test Contract Drift.md",
+    "Notes/Design Decisions.md",
+    "Notes/Contribution Guide.md"
+  ]
 }

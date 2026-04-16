@@ -1,20 +1,30 @@
 from typing import List
 
-from app.models.schemas import Action, Issue
+from app.core.playbook_engine import PlaybookEngine
+from app.models.schemas import Action, Issue, RemediationStrategy
 
 
 class Planner:
     """Plan actions based on detected issues."""
 
+    def __init__(self, playbook_engine: PlaybookEngine | None = None) -> None:
+        self.playbook_engine = playbook_engine or PlaybookEngine()
+
     def plan(self, issues: List[Issue]) -> List[Action]:
+        actions, _ = self.plan_with_strategies(issues)
+        return actions
+
+    def plan_with_strategies(self, issues: List[Issue]) -> tuple[List[Action], List[RemediationStrategy]]:
         actions: List[Action] = []
+        strategies: List[RemediationStrategy] = []
         prioritized_issues = sorted(
             issues,
             key=lambda issue: (-issue.priority_score, issue.id),
         )
         for issue in prioritized_issues:
             actions.extend(self._actions_for_issue(issue))
-        return actions
+            strategies.append(self.playbook_engine.build_strategy(issue))
+        return actions, strategies
 
     def _actions_for_issue(self, issue: Issue) -> List[Action]:
         issue_target = issue.target or issue.category
@@ -23,11 +33,50 @@ class Planner:
             return [
                 self._build_action(
                     issue=issue,
+                    action_type="inspect_process",
+                    target=issue_target,
+                    description=f"Inspect process indicators for service {issue_target}.",
+                    planning_reason="SERVICE_DOWN playbook begins with a safe process inspection step.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="collect_forensic_snapshot",
+                    target=issue_target,
+                    description=f"Collect service diagnostics and log context for {issue_target}.",
+                    planning_reason="SERVICE_DOWN playbook collects forensic evidence before remediation.",
+                ),
+                self._build_action(
+                    issue=issue,
                     action_type="restart_service",
                     target=issue_target,
                     description=f"Restart service {issue_target} after detecting a service-down condition.",
-                    planning_reason="SERVICE_DOWN issues map to restart_service in the V1 planner.",
+                    planning_reason="SERVICE_DOWN playbook proposes a controlled restart after observation steps.",
                 )
+            ]
+
+        if issue.type == "CRASH_LOOP":
+            return [
+                self._build_action(
+                    issue=issue,
+                    action_type="inspect_process",
+                    target=issue_target,
+                    description=f"Inspect runtime context for crash-looping service {issue_target}.",
+                    planning_reason="CRASH_LOOP issues require process inspection before restart strategy.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="collect_forensic_snapshot",
+                    target=issue_target,
+                    description=f"Collect crash-loop evidence and restart telemetry for {issue_target}.",
+                    planning_reason="CRASH_LOOP issues require evidence capture before remediation.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="restart_service",
+                    target=issue_target,
+                    description=f"Restart crash-looping service {issue_target} in controlled simulation.",
+                    planning_reason="CRASH_LOOP issues may stabilize after a controlled restart simulation.",
+                ),
             ]
 
         if issue.type == "PORT_CONFLICT":
@@ -41,6 +90,20 @@ class Planner:
                 ),
                 self._build_action(
                     issue=issue,
+                    action_type="inspect_process",
+                    target=issue_target,
+                    description=f"Inspect process metadata associated with {issue_target}.",
+                    planning_reason="PORT_CONFLICT strategy identifies process ownership before containment steps.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="collect_forensic_snapshot",
+                    target=issue_target,
+                    description=f"Collect forensic context for conflict evidence on {issue_target}.",
+                    planning_reason="PORT_CONFLICT strategy collects evidence before high-risk actions.",
+                ),
+                self._build_action(
+                    issue=issue,
                     action_type="stop_conflicting_process",
                     target=issue_target,
                     description=f"Stop the conflicting process associated with {issue_target}.",
@@ -50,6 +113,20 @@ class Planner:
 
         if issue.type == "DISK_PRESSURE":
             return [
+                self._build_action(
+                    issue=issue,
+                    action_type="inspect_process",
+                    target=issue_target,
+                    description=f"Inspect high-impact processes contributing to disk pressure on {issue_target}.",
+                    planning_reason="DISK_PRESSURE strategy starts with read-only process inspection.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="collect_forensic_snapshot",
+                    target=issue_target,
+                    description=f"Collect disk-pressure forensic context for target {issue_target}.",
+                    planning_reason="DISK_PRESSURE strategy captures diagnostics before cleanup proposals.",
+                ),
                 self._build_action(
                     issue=issue,
                     action_type="clear_temp_files",
@@ -81,6 +158,24 @@ class Planner:
                     target=issue_target,
                     description=f"Quarantine suspicious process {issue_target}.",
                     planning_reason="SUSPICIOUS_PROCESS may require quarantine after observation steps.",
+                ),
+            ]
+
+        if issue.type == "HIGH_RESOURCE_USAGE":
+            return [
+                self._build_action(
+                    issue=issue,
+                    action_type="inspect_process",
+                    target=issue_target,
+                    description=f"Inspect high-resource process details for {issue_target}.",
+                    planning_reason="HIGH_RESOURCE_USAGE strategy starts with a process inspection step.",
+                ),
+                self._build_action(
+                    issue=issue,
+                    action_type="collect_forensic_snapshot",
+                    target=issue_target,
+                    description=f"Collect a forensic snapshot for resource-heavy workload {issue_target}.",
+                    planning_reason="HIGH_RESOURCE_USAGE strategy records evidence for workload analysis.",
                 ),
             ]
 
