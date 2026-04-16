@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Repair Agent Dashboard</title>
+    <script>
+        tailwind = window.tailwind || {};
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: "#060816",
+                        ink: "#0d1326",
+                        panel: "rgba(13, 19, 38, 0.72)",
+                        line: "rgba(148, 163, 184, 0.16)",
+                        accent: "#5eead4",
+                        signal: "#38bdf8",
+                        danger: "#fb7185",
+                        warn: "#f59e0b",
+                        success: "#34d399",
+                        mist: "#cbd5e1",
+                    },
+                    fontFamily: {
+                        display: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+                        mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular"],
+                    },
+                    boxShadow: {
+                        glow: "0 0 0 1px rgba(94,234,212,0.08), 0 18px 60px rgba(6,8,22,0.45)",
+                    },
+                },
+            },
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body class="min-h-full bg-obsidian font-display text-slate-100 antialiased">
+    <div class="dashboard-orb dashboard-orb-a"></div>
+    <div class="dashboard-orb dashboard-orb-b"></div>
+    <div class="dashboard-grid"></div>
+
+    <div class="relative z-10 min-h-screen">
+        <div class="mx-auto flex min-h-screen max-w-[1680px] flex-col lg:flex-row">
+            <aside class="border-b border-white/10 bg-black/20 px-6 py-6 backdrop-blur-xl lg:w-[280px] lg:border-b-0 lg:border-r">
+                <div class="glass-panel flex h-full flex-col gap-6 rounded-[28px] p-6 shadow-glow">
+                    <div>
+                        <div class="inline-flex items-center gap-3 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.32em] text-cyan-200">
+                            Live Control Surface
+                        </div>
+                        <h1 class="mt-5 text-3xl font-bold tracking-tight text-white">Autonomous Repair Agent</h1>
+                        <p class="mt-3 text-sm leading-6 text-slate-300">
+                            Security-focused observation, policy planning, and simulated remediation from a unified operations dashboard.
+                        </p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p class="text-xs uppercase tracking-[0.28em] text-slate-400">Operational View</p>
+                        <p id="active-view-label" class="mt-3 text-xl font-semibold text-white">Snapshot</p>
+                        <p id="status-copy" class="mt-2 text-sm text-slate-300">Awaiting telemetry from the current target.</p>
+                    </div>
+
+                    <nav class="space-y-2 text-sm text-slate-300">
+                        <a href="#overview" class="sidebar-link">Overview</a>
+                        <a href="#issues" class="sidebar-link">Issues</a>
+                        <a href="#processes" class="sidebar-link">Processes</a>
+                        <a href="#services" class="sidebar-link">Services</a>
+                        <a href="#plan-results" class="sidebar-link">Plan Results</a>
+                        <a href="#execute-results" class="sidebar-link">Execution</a>
+                    </nav>
+
+                    <div class="mt-auto rounded-2xl border border-emerald-400/15 bg-emerald-400/8 p-4">
+                        <p class="text-xs uppercase tracking-[0.28em] text-emerald-200/90">Safety Guardrail</p>
+                        <p class="mt-3 text-sm leading-6 text-emerald-50/90">
+                            Live mode is observation-only. Planning and execution remain policy-bound and fully simulated.
+                        </p>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+                <div class="space-y-6">
+                    <section id="overview" class="glass-panel fade-rise overflow-hidden rounded-[30px] border border-white/10 p-6 shadow-glow sm:p-8">
+                        <div class="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
+                            <div class="max-w-3xl">
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <span id="status-pill" class="status-pill status-idle">Awaiting Data</span>
+                                    <span id="live-pill" class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.28em] text-slate-300">
+                                        Mode: Mock
+                                    </span>
+                                </div>
+                                <h2 class="mt-5 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                                    Autonomous telemetry for modern remediation workflows.
+                                </h2>
+                                <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                                    Switch platforms, inspect risk posture, review policy decisions, and validate simulated execution results from a single security-operations cockpit.
+                                </p>
+                            </div>
+
+                            <div class="grid w-full gap-4 sm:grid-cols-3 xl:w-[460px]">
+                                <div class="metric-shell">
+                                    <p class="metric-label">Risk Score</p>
+                                    <p id="risk-score" class="metric-value">--</p>
+                                    <p id="risk-summary" class="metric-copy">No telemetry loaded yet.</p>
+                                </div>
+                                <div class="metric-shell">
+                                    <p class="metric-label">Platform</p>
+                                    <p id="hero-platform" class="metric-value text-2xl">Linux</p>
+                                    <p id="hero-mode" class="metric-copy">Mode: Mock</p>
+                                </div>
+                                <div class="metric-shell">
+                                    <p class="metric-label">Last Refresh</p>
+                                    <p id="last-refresh" class="metric-value text-2xl">--</p>
+                                    <p id="health-summary" class="metric-copy">Snapshot view ready.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="glass-panel fade-rise rounded-[30px] border border-white/10 p-5 shadow-glow sm:p-6">
+                        <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Control Bar</p>
+                                <h3 class="mt-2 text-2xl font-semibold text-white">Target Selection & Operations</h3>
+                                <p class="mt-2 text-sm text-slate-300">
+                                    Switch platform and mode, then load snapshot, planning, or simulated execution telemetry without leaving the page.
+                                </p>
+                            </div>
+
+                            <div class="flex flex-col gap-4 xl:items-end">
+                                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[180px_180px]">
+                                    <label class="control-field">
+                                        <span class="control-label">Platform</span>
+                                        <select id="platform-select" class="control-select">
+                                            <option value="linux">Linux</option>
+                                            <option value="windows">Windows</option>
+                                            <option value="macos">macOS</option>
+                                        </select>
+                                    </label>
+                                    <label class="control-field">
+                                        <span class="control-label">Mode</span>
+                                        <select id="mode-select" class="control-select">
+                                            <option value="mock">Mock</option>
+                                            <option value="live">Live</option>
+                                        </select>
+                                    </label>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3">
+                                    <button id="refresh-btn" type="button" class="btn-secondary">Refresh</button>
+                                    <button id="snapshot-btn" type="button" class="btn-primary">Load Snapshot</button>
+                                    <button id="plan-btn" type="button" class="btn-secondary">Load Plan</button>
+                                    <button id="execute-btn" type="button" class="btn-danger">Load Execute</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div id="feedback-banner" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
+
+                    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+                        <div class="summary-card">
+                            <p class="summary-label">OS Version</p>
+                            <p id="summary-os" class="summary-value">--</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Hostname</p>
+                            <p id="summary-hostname" class="summary-value">--</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">CPU Usage</p>
+                            <p id="summary-cpu" class="summary-value">--</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Memory Usage</p>
+                            <p id="summary-memory" class="summary-value">--</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Disk Usage</p>
+                            <p id="summary-disk" class="summary-value">--</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Issue Count</p>
+                            <p id="summary-issues" class="summary-value">0</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Critical</p>
+                            <p id="summary-critical" class="summary-value">0</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">High</p>
+                            <p id="summary-high" class="summary-value">0</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Medium</p>
+                            <p id="summary-medium" class="summary-value">0</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Low</p>
+                            <p id="summary-low" class="summary-value">0</p>
+                        </div>
+                        <div class="summary-card">
+                            <p class="summary-label">Health Score</p>
+                            <p id="summary-health" class="summary-value">--</p>
+                        </div>
+                    </section>
+
+                    <section class="grid gap-6 2xl:grid-cols-[1.2fr_0.8fr]">
+                        <div id="issues" class="section-panel">
+                            <div class="section-head">
+                                <div>
+                                    <p class="section-kicker">Risk Surface</p>
+                                    <h3 class="section-title">Detected Issues</h3>
+                                </div>
+                                <span id="issues-meta" class="section-meta">Awaiting scan</span>
+                            </div>
+                            <div id="issues-panel" class="panel-grid"></div>
+                        </div>
+
+                        <div class="grid gap-6">
+                            <div id="ports" class="section-panel">
+                                <div class="section-head">
+                                    <div>
+                                        <p class="section-kicker">Network</p>
+                                        <h3 class="section-title">Open Ports</h3>
+                                    </div>
+                                </div>
+                                <div id="ports-panel" class="panel-grid"></div>
+                            </div>
+
+                            <div id="logs" class="section-panel">
+                                <div class="section-head">
+                                    <div>
+                                        <p class="section-kicker">Telemetry</p>
+                                        <h3 class="section-title">Recent Logs</h3>
+                                    </div>
+                                </div>
+                                <div id="logs-panel" class="log-shell"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                        <div id="processes" class="section-panel">
+                            <div class="section-head">
+                                <div>
+                                    <p class="section-kicker">Workload</p>
+                                    <h3 class="section-title">Top Processes</h3>
+                                </div>
+                                <span id="processes-meta" class="section-meta">No process data</span>
+                            </div>
+                            <div id="processes-panel" class="overflow-hidden rounded-2xl border border-white/8 bg-black/20"></div>
+                        </div>
+
+                        <div id="services" class="section-panel">
+                            <div class="section-head">
+                                <div>
+                                    <p class="section-kicker">Services</p>
+                                    <h3 class="section-title">Service Health</h3>
+                                </div>
+                                <span id="services-meta" class="section-meta">No services loaded</span>
+                            </div>
+                            <div id="services-panel" class="panel-grid"></div>
+                        </div>
+                    </section>
+
+                    <section id="plan-results" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Policy Planning</p>
+                                <h3 class="section-title">Plan Results</h3>
+                            </div>
+                            <span id="plan-meta" class="section-meta">Snapshot mode only</span>
+                        </div>
+
+                        <div class="grid gap-5 lg:grid-cols-3">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Candidate Actions</span>
+                                    <span id="candidate-count" class="result-count">0</span>
+                                </div>
+                                <div id="candidate-actions-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-success">Allowed Actions</span>
+                                    <span id="allowed-count" class="result-count">0</span>
+                                </div>
+                                <div id="allowed-actions-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-warning">Approval Required</span>
+                                    <span id="approval-required-count" class="result-count">0</span>
+                                </div>
+                                <div id="approval-required-actions-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-danger">Blocked Actions</span>
+                                    <span id="blocked-count" class="result-count">0</span>
+                                </div>
+                                <div id="blocked-actions-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="execute-results" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Simulation</p>
+                                <h3 class="section-title">Execution & Verification</h3>
+                            </div>
+                            <span id="execute-meta" class="section-meta">Simulation only</span>
+                        </div>
+
+                        <div class="grid gap-5 xl:grid-cols-2">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-signal">Executed Actions</span>
+                                    <span id="executed-count" class="result-count">0</span>
+                                </div>
+                                <div id="executed-actions-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Verification Results</span>
+                                    <span id="verification-count" class="result-count">0</span>
+                                </div>
+                                <div id="verification-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/dashboard.js" defer></script>
+</body>
+</html>
