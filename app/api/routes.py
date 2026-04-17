@@ -5,6 +5,7 @@ from app.core.approval_service import ApprovalService
 from app.core.baseline_service import BaselineService
 from app.core.correlation_service import CorrelationService
 from app.core.dispatcher import Dispatcher
+from app.core.graph_builder import HostGraphBuilder
 from app.core.history_service import HistoryService
 from app.core.planner import Planner
 from app.core.policy_engine import PolicyEngine
@@ -27,18 +28,21 @@ from app.models.schemas import (
     CommandResult,
     DecisionTraceEntry,
     ExecuteResponse,
+    HostGraph,
     HostBaseline,
     HistoryEventDetail,
     HistoryEventSummary,
     IncidentDetail,
     IncidentState,
     IncidentSummary,
+    Issue,
     OperatorDecisionTrace,
     PlanResponse,
     Playbook,
     PlaybookExecution,
     RemediationStrategy,
     RuntimeObservationTrace,
+    StrategySelection,
     StateSnapshot,
     TraceStage,
     VerificationResult,
@@ -59,6 +63,7 @@ correlation_service = CorrelationService(repository=history_service.repository)
 approval_service = ApprovalService(
     repository=ApprovalRepository(db_path=history_service.repository.db_path)
 )
+graph_builder = HostGraphBuilder()
 macos_adapter = state_manager.adapters.get("macos")
 if macos_adapter is not None and hasattr(macos_adapter, "runtime_observation_service"):
     macos_adapter.runtime_observation_service = runtime_observation_service
@@ -437,7 +442,7 @@ def _approval_decisions_to_operator_trace(
 
 def _build_incident_detail_playbook(
     incident: IncidentDetail,
-) -> tuple[RemediationStrategy | None, IncidentState | None, PlaybookExecution | None]:
+) -> tuple[RemediationStrategy | None, StrategySelection | None, IncidentState | None, PlaybookExecution | None]:
     synthetic_issue = next(
         (
             issue
@@ -447,7 +452,7 @@ def _build_incident_detail_playbook(
         None,
     )
     if synthetic_issue is None:
-        return None, None, None
+        return None, None, None, None
 
     synthetic_issue = synthetic_issue.model_copy(
         update={
@@ -459,7 +464,11 @@ def _build_incident_detail_playbook(
             "recurrence_status": "chronic" if incident.recurrence_count >= 3 else "recurring",
         }
     )
-    candidate_actions, strategies = planner.plan_with_strategies([synthetic_issue])
+    candidate_actions, strategies, strategy_selections = planner.plan_with_strategy_selection(
+        [synthetic_issue],
+        platform=incident.platform,
+        mode="mock",
+    )
     evaluated_actions = policy_engine.evaluate_actions(candidate_actions, platform=incident.platform, mode="mock")
     plan_strategies, _ = _build_playbook_plan(evaluated_actions, strategies)
     approval_status_by_action_id = approval_service.approval_status_by_action(plan_strategies)
@@ -475,9 +484,10 @@ def _build_incident_detail_playbook(
         approval_status_by_action_id=approval_status_by_action_id,
     )
     strategy = enriched_strategies[0] if enriched_strategies else None
+    strategy_selection = strategy_selections[0] if strategy_selections else None
     incident_state = incident_states[0] if incident_states else None
     execution = executions[0] if executions else None
-    return strategy, incident_state, execution
+    return strategy, strategy_selection, incident_state, execution
 
 
 def _build_execute_trace(
@@ -538,6 +548,87 @@ def _persist_execute_event(execute_response: ExecuteResponse, platform: str, mod
     history_service.record_execute_event(execute_response, platform, mode)
 
 
+def _synthetic_issue_for_incident(incident: IncidentDetail) -> Issue:
+    return Issue(
+        id=f"incident-{incident.incident_key}",
+        type=incident.issue_type,
+        category="incident",
+        description=f"{incident.issue_type} correlated incident for target {incident.target}.",
+        target=incident.target,
+        severity=incident.severity_summary,
+        confidence=0.7,
+        priority_score=70,
+        evidence=[
+            f"Incident recurrence_count={incident.recurrence_count}",
+            f"Recommended attention level={incident.recommended_attention_level}",
+        ],
+        detection_reason="Synthetic issue derived from persisted incident correlation.",
+        severity_reason="Inherited from incident severity summary.",
+        confidence_reason="Derived from correlated incident history.",
+        incident_key=incident.incident_key,
+        recurrence_count=incident.recurrence_count,
+        recurrence_status="chronic" if incident.recurrence_count >= 3 else "recurring",
+    )
+
+
+def _build_graph_for_context(
+    *,
+    platform: str,
+    mode: str,
+    incident_key: str | None = None,
+) -> HostGraph:
+    snapshot = _collect_snapshot_for_request(platform, mode)
+    snapshot = _enrich_snapshot_with_baseline(snapshot, platform, mode)
+    snapshot = snapshot.model_copy(
+        update={
+            "issues": correlation_service.enrich_issues(
+                snapshot.issues,
+                platform,
+                mode,
+                event_snapshot=snapshot.model_dump(),
+            )
+        }
+    )
+
+    incidents = correlation_service.list_incidents(
+        limit=100,
+        platform=platform,
+        mode=mode,
+    )
+    if incident_key is not None:
+        incident_detail = correlation_service.get_incident(incident_key)
+        if incident_detail is None:
+            raise HTTPException(status_code=404, detail=f"Incident {incident_key} not found.")
+        incidents = [incident_detail]
+        filtered_issues = [issue for issue in snapshot.issues if issue.incident_key == incident_key]
+        if not filtered_issues:
+            filtered_issues = [_synthetic_issue_for_incident(incident_detail)]
+        snapshot = snapshot.model_copy(update={"issues": filtered_issues})
+
+    candidate_actions, remediation_strategies, strategy_selections = planner.plan_with_strategy_selection(
+        snapshot.issues,
+        platform=platform,
+        mode=mode,
+    )
+    evaluated_actions = policy_engine.evaluate_actions(
+        candidate_actions,
+        platform=platform,
+        mode=mode,
+    )
+    remediation_strategies, _ = _build_playbook_plan(
+        evaluated_actions,
+        remediation_strategies,
+    )
+    return graph_builder.build_graph(
+        snapshot=snapshot,
+        incidents=incidents,
+        strategies=remediation_strategies,
+        strategy_selections=strategy_selections,
+        actions=evaluated_actions,
+        incident_key=incident_key,
+    )
+
+
 @router.get("/snapshot", response_model=StateSnapshot, tags=["snapshot"])
 async def get_snapshot(platform: str | None = None, mode: str | None = None):
     normalized_platform = platform or state_manager.default_platform
@@ -574,7 +665,11 @@ async def get_plan(platform: str | None = None, mode: str | None = None):
             )
         }
     )
-    candidate_actions, remediation_strategies = planner.plan_with_strategies(snapshot.issues)
+    candidate_actions, remediation_strategies, strategy_selections = planner.plan_with_strategy_selection(
+        snapshot.issues,
+        platform=normalized_platform,
+        mode=normalized_mode,
+    )
     evaluated_actions = policy_engine.evaluate_actions(
         candidate_actions,
         platform=normalized_platform,
@@ -635,6 +730,7 @@ async def get_plan(platform: str | None = None, mode: str | None = None):
         approval_required_actions=policy_engine.approval_required_actions(evaluated_actions),
         blocked_actions=policy_engine.blocked_actions(evaluated_actions),
         remediation_strategies=remediation_strategies,
+        strategy_selections=strategy_selections,
         incident_states=incident_states,
         approvals=approvals,
         approval_summary=approval_summary,
@@ -662,7 +758,11 @@ async def get_execute(platform: str | None = None, mode: str | None = None):
             )
         }
     )
-    candidate_actions, remediation_strategies = planner.plan_with_strategies(snapshot.issues)
+    candidate_actions, remediation_strategies, strategy_selections = planner.plan_with_strategy_selection(
+        snapshot.issues,
+        platform=normalized_platform,
+        mode=normalized_mode,
+    )
     evaluated_actions = policy_engine.evaluate_actions(
         candidate_actions,
         platform=normalized_platform,
@@ -746,6 +846,7 @@ async def get_execute(platform: str | None = None, mode: str | None = None):
         approval_required_actions=policy_engine.approval_required_actions(evaluated_actions),
         blocked_actions=policy_engine.blocked_actions(evaluated_actions),
         remediation_strategies=remediation_strategies,
+        strategy_selections=strategy_selections,
         incident_states=incident_states,
         playbook_executions=playbook_executions,
         approvals=approvals,
@@ -760,6 +861,29 @@ async def get_execute(platform: str | None = None, mode: str | None = None):
     )
     _persist_execute_event(execute_response, normalized_platform, normalized_mode)
     return execute_response
+
+
+@router.get("/graph/current", response_model=HostGraph, tags=["graph"])
+async def get_current_graph(platform: str | None = None, mode: str | None = None):
+    normalized_platform = platform or state_manager.default_platform
+    normalized_mode = mode or state_manager.default_mode
+    return _build_graph_for_context(
+        platform=normalized_platform,
+        mode=normalized_mode,
+    )
+
+
+@router.get("/graph/incident/{incident_key}", response_model=HostGraph, tags=["graph"])
+async def get_incident_graph(incident_key: str, mode: str | None = None):
+    incident = correlation_service.get_incident(incident_key)
+    if incident is None:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_key} not found.")
+    normalized_mode = mode or state_manager.default_mode
+    return _build_graph_for_context(
+        platform=incident.platform,
+        mode=normalized_mode,
+        incident_key=incident_key,
+    )
 
 
 @router.get("/incidents", response_model=list[IncidentSummary], tags=["incidents"])
@@ -798,7 +922,7 @@ async def get_incident(incident_key: str):
     incident = correlation_service.get_incident(incident_key)
     if incident is None:
         raise HTTPException(status_code=404, detail=f"Incident {incident_key} not found.")
-    strategy, incident_state, execution = _build_incident_detail_playbook(incident)
+    strategy, strategy_selection, incident_state, execution = _build_incident_detail_playbook(incident)
     approval_requests = approval_service.list_requests_for_incident(incident_key, limit=100)
     approval_decisions: list[ApprovalDecision] = []
     for request in approval_requests:
@@ -808,6 +932,7 @@ async def get_incident(incident_key: str):
         update={
             "incident_state": incident_state,
             "remediation_strategy": strategy,
+            "strategy_selection": strategy_selection,
             "playbook_execution": execution,
             "approval_requests": approval_requests,
             "approval_decisions": approval_decisions,

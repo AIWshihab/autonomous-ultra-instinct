@@ -215,6 +215,12 @@ def test_plan_includes_policy_metadata():
     assert restart_action.policy_reason
     assert plan.approval_required_actions
     assert plan.blocked_actions
+    assert plan.strategy_selections
+    first_selection = plan.strategy_selections[0]
+    assert first_selection.selected_strategy_id
+    assert first_selection.winning_reason
+    assert first_selection.ranked_candidates
+    assert first_selection.rejected_reasons
 
 
 def test_plan_includes_trace_and_planning_reasons():
@@ -288,6 +294,7 @@ def test_execute_only_runs_allowed_non_blocked_actions():
     assert any(entry.stage == "actions_dispatched" for entry in execution_report.decision_trace)
     assert any(entry.stage == "actions_verified" for entry in execution_report.decision_trace)
     assert any(state.current_state in {"approval_pending", "denied", "expired", "blocked"} for state in execution_report.incident_states)
+    assert execution_report.strategy_selections
 
 
 def test_execute_audit_trail_includes_dispatch_and_verification_stages():
@@ -404,7 +411,45 @@ def test_incident_detail_includes_playbook_and_state():
     detail = detail_response.json()
     assert detail["incident_state"] is not None
     assert detail["remediation_strategy"] is not None
+    assert detail["strategy_selection"] is not None
     assert detail["playbook_execution"] is not None
+
+
+def test_graph_current_endpoint_returns_connected_graph_shape():
+    response = client.get("/graph/current?platform=linux&mode=mock")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert "nodes" in payload
+    assert "edges" in payload
+    assert "metadata" in payload
+    assert payload["nodes"]
+    assert payload["edges"]
+    assert any(node["type"] == "host" for node in payload["nodes"])
+    assert any(node["type"] == "issue" for node in payload["nodes"])
+    assert any(node["type"] == "strategy" for node in payload["nodes"])
+    assert any(edge["type"] in {"contains", "targets", "listens_on", "executes"} for edge in payload["edges"])
+
+
+def test_graph_incident_endpoint_returns_incident_scoped_graph_shape():
+    snapshot_response = client.get("/snapshot?platform=linux&mode=mock")
+    assert snapshot_response.status_code == 200
+
+    incidents_response = client.get("/incidents?platform=linux&mode=mock")
+    assert incidents_response.status_code == 200
+    incidents = incidents_response.json()
+    assert incidents
+
+    incident_key = incidents[0]["incident_key"]
+    graph_response = client.get(f"/graph/incident/{incident_key}?mode=mock")
+    assert graph_response.status_code == 200
+    payload = graph_response.json()
+
+    assert payload["metadata"]["incident_key"] == incident_key
+    assert any(node["id"] == f"incident:{incident_key}" for node in payload["nodes"])
+    assert any(node["type"] == "issue" for node in payload["nodes"])
+    assert any(node["type"] == "strategy" for node in payload["nodes"])
+    assert payload["edges"]
 
 
 def test_playbooks_endpoints_return_definitions():

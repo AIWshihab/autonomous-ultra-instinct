@@ -12,6 +12,10 @@ const state = {
     approvals: [],
     approvalDecisions: [],
     runtimeRecent: [],
+    currentGraph: null,
+    incidentGraph: null,
+    selectedGraphNodeId: null,
+    selectedIncidentKey: null,
 };
 
 const els = {};
@@ -74,6 +78,11 @@ function cacheElements() {
         "strategy-panel",
         "incident-state-count",
         "incident-state-panel",
+        "strategy-selection-meta",
+        "strategy-selected-count",
+        "strategy-selected-panel",
+        "strategy-alt-count",
+        "strategy-alt-panel",
         "execute-meta",
         "executed-count",
         "verification-count",
@@ -96,6 +105,11 @@ function cacheElements() {
         "runtime-policy-panel",
         "runtime-results-panel",
         "runtime-recent-panel",
+        "graph-meta",
+        "graph-summary",
+        "graph-node-groups",
+        "graph-node-detail",
+        "graph-edge-panel",
         "incident-meta",
         "incident-list",
     ];
@@ -155,6 +169,8 @@ function applyControlState() {
 async function loadView(action) {
     state.lastAction = action;
     state.loading = true;
+    state.incidentGraph = null;
+    state.selectedIncidentKey = null;
     applyControlState();
     setBanner(`Loading ${action} telemetry for ${state.platform} in ${state.mode} mode...`, "info");
     renderLoadingState(action);
@@ -178,6 +194,7 @@ async function loadView(action) {
         renderAll();
         await loadHistoryTimeline();
         await loadRecentIncidents();
+        await loadCurrentGraph();
         await loadApprovalCenter();
         await loadRuntimeRecent();
         setBanner(`${capitalize(action)} telemetry updated successfully.`, "info");
@@ -324,6 +341,59 @@ async function loadRuntimeRecent() {
     }
 }
 
+async function loadCurrentGraph() {
+    try {
+        const params = new URLSearchParams({
+            platform: state.platform,
+            mode: state.mode,
+        });
+        const response = await fetch(`/graph/current?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `Graph request failed with status ${response.status}`);
+        }
+        state.currentGraph = payload;
+        if (!state.selectedGraphNodeId || !graphHasNode(payload, state.selectedGraphNodeId)) {
+            state.selectedGraphNodeId = payload.nodes?.find((node) => node.type === "host")?.id || payload.nodes?.[0]?.id || null;
+        }
+        renderGraphPanel();
+    } catch (error) {
+        console.error(error);
+        els["graph-meta"].textContent = "Graph service unavailable";
+        els["graph-summary"].innerHTML = emptyState("Unable to load host graph summary.");
+        els["graph-node-groups"].innerHTML = emptyState("Unable to load dependency node topology.");
+        els["graph-node-detail"].innerHTML = emptyState("No graph node selected.");
+        els["graph-edge-panel"].innerHTML = emptyState("No dependency edges available.");
+    }
+}
+
+async function loadIncidentGraph(incidentKey) {
+    if (!incidentKey) return;
+    try {
+        const params = new URLSearchParams({ mode: state.mode });
+        const response = await fetch(`/graph/incident/${encodeURIComponent(incidentKey)}?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.detail || `Incident graph request failed with status ${response.status}`);
+        }
+        state.selectedIncidentKey = incidentKey;
+        state.incidentGraph = payload;
+        state.selectedGraphNodeId = `incident:${incidentKey}`;
+        if (!graphHasNode(payload, state.selectedGraphNodeId)) {
+            state.selectedGraphNodeId = payload.nodes?.[0]?.id || null;
+        }
+        renderIncidentList();
+        renderGraphPanel();
+    } catch (error) {
+        console.error(error);
+        setBanner(error.message || "Unable to load incident graph context.", "error");
+    }
+}
+
 function renderIncidentList() {
     if (!state.incidents || state.incidents.length === 0) {
         els["incident-meta"].textContent = "No recurring incident clusters detected";
@@ -337,8 +407,9 @@ function renderIncidentList() {
             const badgeClass = getIncidentSeverityClass(incident.severity_summary);
             const lastSeen = formatDateTime(new Date(incident.last_seen_at));
             const eventCount = incident.related_event_ids?.length ?? 0;
+            const isActive = state.selectedIncidentKey === incident.incident_key;
             return `
-                <article class="incident-card">
+                <article class="incident-card ${isActive ? "incident-card-active" : ""}" data-incident-key="${escapeHtml(incident.incident_key)}">
                     <div class="incident-card-head">
                         <div>
                             <p class="text-xs uppercase tracking-[0.22em] text-slate-400">${escapeHtml(incident.issue_type)}</p>
@@ -361,10 +432,21 @@ function renderIncidentList() {
                         <span class="status-badge status-neutral">Trend: ${escapeHtml(incident.trend_direction)}</span>
                         <span class="status-badge status-neutral">Events: ${escapeHtml(String(eventCount))}</span>
                     </div>
+                    <div class="mt-4">
+                        <button type="button" class="btn-secondary incident-graph-btn" data-incident-key="${escapeHtml(incident.incident_key)}">
+                            View Incident Graph
+                        </button>
+                    </div>
                 </article>
             `;
         })
         .join("");
+
+    els["incident-list"].querySelectorAll(".incident-graph-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+            loadIncidentGraph(button.dataset.incidentKey);
+        });
+    });
 }
 
 function getIncidentSeverityClass(severitySummary) {
@@ -481,6 +563,7 @@ function normalizeData(action, payload) {
         ...payload,
         dispatch: payload.dispatch || { executed_actions: [] },
         verification_results: payload.verification_results || [],
+        strategy_selections: payload.strategy_selections || [],
         view: action,
     };
 }
@@ -493,6 +576,7 @@ function renderAll() {
     const approvalRequiredActions = state.data.approval_required_actions || [];
     const blockedActions = state.data.blocked_actions || [];
     const remediationStrategies = state.data.remediation_strategies || [];
+    const strategySelections = state.data.strategy_selections || [];
     const incidentStates = state.data.incident_states || [];
     const playbookExecutions = state.data.playbook_executions || [];
     const executedActions = state.data.dispatch.executed_actions || [];
@@ -508,11 +592,13 @@ function renderAll() {
     renderPorts(snapshot.open_ports || []);
     renderLogs(snapshot.recent_logs || []);
     renderPlan(candidateActions, allowedActions, approvalRequiredActions, blockedActions);
+    renderStrategySelectionBoard(strategySelections);
     renderExecution(executedActions, verificationResults);
     renderStrategies(remediationStrategies, incidentStates);
     renderPlaybookExecutions(playbookExecutions);
     renderApprovalCenter();
     renderRuntimeObservation(snapshot.runtime_observation_trace || null, state.runtimeRecent || []);
+    renderGraphPanel();
     renderHistoryTimeline();
 }
 
@@ -527,6 +613,10 @@ function renderLoadingState(action) {
         "runtime-policy-panel",
         "runtime-results-panel",
         "runtime-recent-panel",
+        "graph-summary",
+        "graph-node-groups",
+        "graph-node-detail",
+        "graph-edge-panel",
         "ports-panel",
         "logs-panel",
         "candidate-actions-panel",
@@ -535,6 +625,8 @@ function renderLoadingState(action) {
         "blocked-actions-panel",
         "strategy-panel",
         "incident-state-panel",
+        "strategy-selected-panel",
+        "strategy-alt-panel",
         "executed-actions-panel",
         "verification-panel",
         "playbook-execution-panel",
@@ -543,6 +635,8 @@ function renderLoadingState(action) {
     ].forEach((id) => {
         els[id].innerHTML = loadingBlock;
     });
+    els["graph-meta"].textContent = "Loading graph topology...";
+    els["strategy-selection-meta"].textContent = "Evaluating deterministic strategy competition...";
     els["status-pill"].textContent = "Loading";
     els["status-pill"].className = "status-pill status-idle";
     els["active-view-label"].textContent = capitalize(action);
@@ -560,6 +654,10 @@ function renderErrorState(message) {
         "runtime-policy-panel",
         "runtime-results-panel",
         "runtime-recent-panel",
+        "graph-summary",
+        "graph-node-groups",
+        "graph-node-detail",
+        "graph-edge-panel",
         "ports-panel",
         "logs-panel",
         "candidate-actions-panel",
@@ -568,6 +666,8 @@ function renderErrorState(message) {
         "blocked-actions-panel",
         "strategy-panel",
         "incident-state-panel",
+        "strategy-selected-panel",
+        "strategy-alt-panel",
         "executed-actions-panel",
         "verification-panel",
         "playbook-execution-panel",
@@ -576,6 +676,8 @@ function renderErrorState(message) {
     ].forEach((id) => {
         els[id].innerHTML = errorBlock;
     });
+    els["graph-meta"].textContent = "Graph unavailable";
+    els["strategy-selection-meta"].textContent = "Strategy board unavailable";
     els["status-pill"].textContent = "Attention";
     els["status-pill"].className = "status-pill status-critical";
     els["status-copy"].textContent = message;
@@ -772,6 +874,205 @@ function renderRuntimeObservation(trace, recentBatches) {
         : emptyState("No recent runtime observation batches persisted.");
 }
 
+function getActiveGraph() {
+    return state.incidentGraph || state.currentGraph;
+}
+
+function graphHasNode(graph, nodeId) {
+    if (!graph || !nodeId) return false;
+    return (graph.nodes || []).some((node) => node.id === nodeId);
+}
+
+function selectGraphNodeForIssue(issueId, target) {
+    const graph = getActiveGraph();
+    if (!graph || !issueId) return;
+    const issueNodeId = `issue:${issueId}`;
+    if (graphHasNode(graph, issueNodeId)) {
+        state.selectedGraphNodeId = issueNodeId;
+        renderGraphPanel();
+        return;
+    }
+    const targetNodeId = findNodeIdByTarget(graph, target);
+    if (targetNodeId) {
+        state.selectedGraphNodeId = targetNodeId;
+        renderGraphPanel();
+    }
+}
+
+function findNodeIdByTarget(graph, target) {
+    const normalizedTarget = String(target || "").trim().toLowerCase();
+    if (!normalizedTarget) return null;
+    const maybePort = Number.parseInt(normalizedTarget, 10);
+    const directPortNode = Number.isFinite(maybePort) ? `port:${maybePort}` : null;
+    if (directPortNode && graphHasNode(graph, directPortNode)) return directPortNode;
+
+    const candidateService = `service:${normalizedTarget}`;
+    if (graphHasNode(graph, candidateService)) return candidateService;
+
+    const processNode = (graph.nodes || []).find(
+        (node) =>
+            node.type === "process" &&
+            String(node.label || "").toLowerCase() === normalizedTarget
+    );
+    return processNode?.id || null;
+}
+
+function graphNodeSeverityClass(severity) {
+    const normalized = String(severity || "").toLowerCase();
+    if (!normalized) return "";
+    if (normalized.includes("critical")) return "graph-node-chip-critical";
+    if (normalized.includes("high")) return "graph-node-chip-high";
+    if (normalized.includes("medium")) return "graph-node-chip-medium";
+    return "graph-node-chip-low";
+}
+
+function renderGraphPanel() {
+    const graph = getActiveGraph();
+    if (!graph) {
+        els["graph-meta"].textContent = "No graph telemetry loaded yet";
+        els["graph-summary"].innerHTML = emptyState("Load a snapshot, plan, or execute view to build a graph model.");
+        els["graph-node-groups"].innerHTML = emptyState("Graph node topology will appear after graph data is loaded.");
+        els["graph-node-detail"].innerHTML = emptyState("Select a node to inspect dependencies and related entities.");
+        els["graph-edge-panel"].innerHTML = emptyState("No dependency edges available.");
+        return;
+    }
+
+    const metadata = graph.metadata || {};
+    const nodeCount = graph.nodes?.length || 0;
+    const edgeCount = graph.edges?.length || 0;
+    const incidentScope = state.incidentGraph
+        ? `incident scope ${state.selectedIncidentKey || metadata.incident_key || "selected"}`
+        : "current host scope";
+    els["graph-meta"].textContent = `${nodeCount} nodes · ${edgeCount} edges · ${incidentScope}`;
+
+    const summaryCards = [
+        ["Nodes", nodeCount],
+        ["Edges", edgeCount],
+        ["Issues", metadata.issue_count || 0],
+        ["Incidents", metadata.incident_count || 0],
+        ["Actions", metadata.action_count || 0],
+        ["Risk", state.data?.snapshot?.risk_score ?? "--"],
+    ];
+    els["graph-summary"].innerHTML = `
+        <div class="graph-summary-grid">
+            ${summaryCards
+                .map(
+                    ([label, value]) => `
+                        <article class="graph-summary-card">
+                            <p class="summary-label">${escapeHtml(String(label))}</p>
+                            <p class="summary-value">${escapeHtml(String(value))}</p>
+                        </article>
+                    `
+                )
+                .join("")}
+        </div>
+    `;
+
+    const nodeTypeOrder = ["host", "incident", "issue", "strategy", "action", "service", "process", "port"];
+    const groupedNodes = nodeTypeOrder
+        .map((type) => [type, (graph.nodes || []).filter((node) => node.type === type)])
+        .filter(([, group]) => group.length > 0);
+
+    if (!state.selectedGraphNodeId || !graphHasNode(graph, state.selectedGraphNodeId)) {
+        state.selectedGraphNodeId = graph.nodes?.[0]?.id || null;
+    }
+
+    els["graph-node-groups"].innerHTML = groupedNodes
+        .map(([type, group]) => `
+            <section class="graph-node-group">
+                <h4 class="graph-node-group-title">${escapeHtml(type)} (${group.length})</h4>
+                <div class="graph-node-chip-grid">
+                    ${group
+                        .map((node) => {
+                            const activeClass = node.id === state.selectedGraphNodeId ? "graph-node-chip-active" : "";
+                            const severityClass = graphNodeSeverityClass(node.severity);
+                            return `
+                                <button
+                                    type="button"
+                                    class="graph-node-chip ${activeClass} ${severityClass}"
+                                    data-node-id="${escapeHtml(node.id)}"
+                                >
+                                    ${escapeHtml(node.label)}
+                                </button>
+                            `;
+                        })
+                        .join("")}
+                </div>
+            </section>
+        `)
+        .join("");
+
+    els["graph-node-groups"].querySelectorAll("button[data-node-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+            state.selectedGraphNodeId = button.dataset.nodeId;
+            renderGraphPanel();
+        });
+    });
+
+    const selectedNode = (graph.nodes || []).find((node) => node.id === state.selectedGraphNodeId) || null;
+    if (!selectedNode) {
+        els["graph-node-detail"].innerHTML = emptyState("No graph node selected.");
+        els["graph-edge-panel"].innerHTML = emptyState("No dependency edges available.");
+        return;
+    }
+
+    const selectedAttributes = selectedNode.attributes || {};
+    const attributeRows = Object.entries(selectedAttributes)
+        .slice(0, 10)
+        .map(
+            ([key, value]) => `
+                <div class="graph-detail-row">
+                    <span class="graph-detail-key">${escapeHtml(key.replaceAll("_", " "))}</span>
+                    <span class="graph-detail-value">${escapeHtml(String(value))}</span>
+                </div>
+            `
+        )
+        .join("");
+
+    els["graph-node-detail"].innerHTML = `
+        <article class="graph-detail-card">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-lg font-semibold text-white">${escapeHtml(selectedNode.label)}</h4>
+                <span class="status-badge status-neutral">${escapeHtml(selectedNode.type)}</span>
+            </div>
+            <p class="mt-2 text-xs text-slate-400">${escapeHtml(selectedNode.id)}</p>
+            <div class="graph-detail-attributes">
+                ${attributeRows || `<div class="empty-state">No node attributes recorded.</div>`}
+            </div>
+        </article>
+    `;
+
+    const relatedEdges = (graph.edges || []).filter(
+        (edge) => edge.source_id === selectedNode.id || edge.target_id === selectedNode.id
+    );
+    if (!relatedEdges.length) {
+        els["graph-edge-panel"].innerHTML = emptyState("No direct dependencies for this node.");
+        return;
+    }
+
+    els["graph-edge-panel"].innerHTML = relatedEdges
+        .slice(0, 50)
+        .map((edge) => {
+            const source = graph.nodes?.find((node) => node.id === edge.source_id);
+            const target = graph.nodes?.find((node) => node.id === edge.target_id);
+            return `
+                <article class="graph-edge-card">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="status-badge status-neutral">${escapeHtml(edge.type)}</span>
+                        <span class="text-xs text-slate-400">${escapeHtml(edge.source_id)} → ${escapeHtml(edge.target_id)}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-300">
+                        ${escapeHtml(source?.label || edge.source_id)}
+                        <span class="text-slate-500">→</span>
+                        ${escapeHtml(target?.label || edge.target_id)}
+                    </p>
+                    <p class="mt-2 text-xs text-slate-400">${escapeHtml(edge.description || "No edge description.")}</p>
+                </article>
+            `;
+        })
+        .join("");
+}
+
 function renderHero(snapshot, risk, issues, candidateActions, allowedActions) {
     els["active-view-label"].textContent = capitalize(state.data.view);
     els["status-copy"].textContent = `${issues.length} issues observed, ${allowedActions.length} actions policy-approved.`;
@@ -825,7 +1126,7 @@ function renderIssues(issues) {
                 .map((item) => `<li>${escapeHtml(item)}</li>`)
                 .join("");
             return `
-                <article class="issue-card issue-card-${escapeHtml(severity)}">
+                <article class="issue-card issue-card-${escapeHtml(severity)}" data-issue-id="${escapeHtml(issue.id || "")}" data-issue-target="${escapeHtml(target)}">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p class="text-xs uppercase tracking-[0.22em] text-slate-400">${escapeHtml(issue.category || "issue")}</p>
@@ -854,6 +1155,14 @@ function renderIssues(issues) {
             `;
         })
         .join("");
+
+    els["issues-panel"].querySelectorAll("article[data-issue-id]").forEach((article) => {
+        article.addEventListener("click", () => {
+            const issueId = article.dataset.issueId;
+            const target = article.dataset.issueTarget;
+            selectGraphNodeForIssue(issueId, target);
+        });
+    });
 }
 
 function renderProcesses(processes) {
@@ -1076,6 +1385,101 @@ function renderPlan(candidateActions, allowedActions, approvalRequiredActions, b
         blockedActions,
         "No blocked actions for the current dataset."
     );
+}
+
+function renderStrategySelectionBoard(strategySelections) {
+    const selections = strategySelections || [];
+    const selectedCount = selections.length;
+    const altCount = selections.reduce((count, selection) => {
+        const ranked = selection.ranked_candidates || [];
+        return count + Math.max(0, ranked.length - 1);
+    }, 0);
+
+    els["strategy-selected-count"].textContent = `${selectedCount}`;
+    els["strategy-alt-count"].textContent = `${altCount}`;
+    els["strategy-selection-meta"].textContent = selectedCount
+        ? `${selectedCount} issue strategy decisions with ranked alternatives`
+        : "No strategy competition data for current view";
+
+    if (!selectedCount) {
+        els["strategy-selected-panel"].innerHTML = emptyState("Load plan or execute view to inspect strategy competition.");
+        els["strategy-alt-panel"].innerHTML = emptyState("No lower-ranked alternatives available.");
+        return;
+    }
+
+    els["strategy-selected-panel"].innerHTML = selections
+        .map((selection) => {
+            const winner = selection.ranked_candidates?.find(
+                (candidate) => candidate.strategy?.strategy_id === selection.selected_strategy_id
+            ) || selection.ranked_candidates?.[0];
+            const score = winner?.score?.total_score ?? "--";
+            const topTradeoffs = (winner?.tradeoffs || []).slice(0, 4)
+                .map((tradeoff) => `
+                    <span class="status-badge status-neutral">
+                        ${escapeHtml(tradeoff.dimension)} ${tradeoff.impact === "cost" ? "cost" : "gain"}: ${escapeHtml(Number(tradeoff.value || 0).toFixed(1))}
+                    </span>
+                `)
+                .join("");
+            return `
+                <article class="strategy-selection-card">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">${escapeHtml(selection.evaluation_context?.issue_type || "issue")}</p>
+                            <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(selection.selected_strategy?.name || selection.selected_strategy_id)}</h4>
+                        </div>
+                        <span class="status-badge status-success">Score ${escapeHtml(String(score))}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(selection.winning_reason || "No winning reason provided.")}</p>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span class="status-badge status-neutral">Issue: ${escapeHtml(selection.issue_id || "n/a")}</span>
+                        <span class="status-badge status-neutral">Mode: ${escapeHtml(selection.evaluation_context?.mode || state.mode)}</span>
+                        <span class="status-badge status-neutral">Severity: ${escapeHtml(selection.evaluation_context?.severity || "unknown")}</span>
+                        <span class="status-badge status-neutral">Confidence: ${escapeHtml(formatConfidence(selection.evaluation_context?.confidence || 0))}</span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        ${topTradeoffs || `<span class="status-badge status-neutral">No tradeoff data available.</span>`}
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+
+    const alternatives = selections.flatMap((selection) => {
+        const ranked = selection.ranked_candidates || [];
+        return ranked
+            .filter((candidate) => candidate.strategy?.strategy_id !== selection.selected_strategy_id)
+            .map((candidate) => ({
+                issue_type: selection.evaluation_context?.issue_type || "issue",
+                issue_id: selection.issue_id,
+                rejected_reason: selection.rejected_reasons?.[candidate.strategy?.strategy_id] || candidate.decision_reason,
+                ...candidate,
+            }));
+    });
+
+    if (!alternatives.length) {
+        els["strategy-alt-panel"].innerHTML = emptyState("No lower-ranked alternatives were produced.");
+        return;
+    }
+
+    els["strategy-alt-panel"].innerHTML = alternatives
+        .map((candidate) => `
+            <article class="strategy-alt-card">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">${escapeHtml(candidate.issue_type)}</p>
+                        <h4 class="mt-2 text-lg font-semibold text-white">${escapeHtml(candidate.strategy?.name || candidate.strategy?.strategy_id || "alternative")}</h4>
+                    </div>
+                    <span class="status-badge status-neutral">Rank ${escapeHtml(String(candidate.rank))} · Score ${escapeHtml(String(candidate.score?.total_score ?? "--"))}</span>
+                </div>
+                <p class="mt-3 text-sm leading-6 text-slate-300">${escapeHtml(candidate.rejected_reason || "No rejection reason provided.")}</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span class="status-badge status-neutral">Approval cost: ${escapeHtml(String(candidate.score?.approval_cost ?? "--"))}</span>
+                    <span class="status-badge status-neutral">Disruption cost: ${escapeHtml(String(candidate.score?.disruption_cost ?? "--"))}</span>
+                    <span class="status-badge status-neutral">Observability: ${escapeHtml(String(candidate.score?.observability_gain ?? "--"))}</span>
+                </div>
+            </article>
+        `)
+        .join("");
 }
 
 function renderExecution(executedActions, verificationResults) {

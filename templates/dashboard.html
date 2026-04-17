@@ -69,7 +69,9 @@
                         <a href="#processes" class="sidebar-link">Processes</a>
                         <a href="#services" class="sidebar-link">Services</a>
                         <a href="#runtime-observation" class="sidebar-link">Runtime Trace</a>
+                        <a href="#graph" class="sidebar-link">Dependency Graph</a>
                         <a href="#plan-results" class="sidebar-link">Plan Results</a>
+                        <a href="#strategy-selection" class="sidebar-link">Strategy Board</a>
                         <a href="#execute-results" class="sidebar-link">Execution</a>
                         <a href="#approval-center" class="sidebar-link">Approval Center</a>
                         <a href="#history" class="sidebar-link">History Timeline</a>
@@ -296,6 +298,32 @@
                         </div>
                     </section>
 
+                    <section id="graph" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Graph Intelligence</p>
+                                <h3 class="section-title">Host Dependency Graph</h3>
+                            </div>
+                            <span id="graph-meta" class="section-meta">Building connected host model</span>
+                        </div>
+                        <div class="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-signal">Node Topology</span>
+                                </div>
+                                <div id="graph-summary" class="mb-4"></div>
+                                <div id="graph-node-groups" class="space-y-4"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Dependency Inspector</span>
+                                </div>
+                                <div id="graph-node-detail" class="mb-4"></div>
+                                <div id="graph-edge-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+
                     <section class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
                         <div id="processes" class="section-panel">
                             <div class="section-head">
@@ -374,6 +402,32 @@
                                     <span id="incident-state-count" class="result-count">0</span>
                                 </div>
                                 <div id="incident-state-panel" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="strategy-selection" class="section-panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="section-kicker">Decision Intelligence</p>
+                                <h3 class="section-title">Strategy Selection Board</h3>
+                            </div>
+                            <span id="strategy-selection-meta" class="section-meta">Awaiting ranked strategy decisions</span>
+                        </div>
+                        <div class="grid gap-5 xl:grid-cols-[1fr_1fr]">
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-success">Selected Strategies</span>
+                                    <span id="strategy-selected-count" class="result-count">0</span>
+                                </div>
+                                <div id="strategy-selected-panel" class="space-y-3"></div>
+                            </div>
+                            <div class="result-column">
+                                <div class="result-column-head">
+                                    <span class="result-badge result-badge-neutral">Ranked Alternatives</span>
+                                    <span id="strategy-alt-count" class="result-count">0</span>
+                                </div>
+                                <div id="strategy-alt-panel" class="space-y-3"></div>
                             </div>
                         </div>
                     </section>

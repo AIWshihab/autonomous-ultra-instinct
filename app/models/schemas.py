@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -352,6 +352,47 @@ class IncidentLifecycleState(str, Enum):
     closed = "closed"
 
 
+class NodeType(str, Enum):
+    host = "host"
+    service = "service"
+    process = "process"
+    port = "port"
+    issue = "issue"
+    incident = "incident"
+    action = "action"
+    strategy = "strategy"
+
+
+class EdgeType(str, Enum):
+    depends_on = "depends_on"
+    listens_on = "listens_on"
+    targets = "targets"
+    contains = "contains"
+    executes = "executes"
+    related_to = "related_to"
+
+
+class GraphNode(BaseModel):
+    id: str
+    type: NodeType
+    label: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    severity: Optional[str] = None
+
+
+class GraphEdge(BaseModel):
+    source_id: str
+    target_id: str
+    type: EdgeType
+    description: str
+
+
+class HostGraph(BaseModel):
+    nodes: List[GraphNode] = Field(default_factory=list)
+    edges: List[GraphEdge] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class StepTransition(BaseModel):
     step_id: str
     from_state: IncidentLifecycleState
@@ -410,6 +451,78 @@ class RemediationStrategy(BaseModel):
     selection_reason: str
     playbook: Playbook
     candidate_action_ids: List[str] = Field(default_factory=list)
+
+
+class StrategyCandidate(BaseModel):
+    strategy_id: str
+    name: str
+    description: str
+    issue_type: str
+    target: str
+    ordered_step_ids: List[str] = Field(default_factory=list)
+    action_types: List[str] = Field(default_factory=list)
+    estimated_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    estimated_approval_burden: float = Field(default=0.0, ge=0.0, le=1.0)
+    estimated_execution_feasibility: float = Field(default=0.0, ge=0.0, le=1.0)
+    estimated_observability: float = Field(default=0.0, ge=0.0, le=1.0)
+    estimated_disruption: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale_summary: str
+
+
+class StrategyScore(BaseModel):
+    severity_alignment: float = 0.0
+    confidence_support: float = 0.0
+    recurrence_pressure: float = 0.0
+    chronicity_pressure: float = 0.0
+    baseline_deviation_support: float = 0.0
+    approval_cost: float = 0.0
+    disruption_cost: float = 0.0
+    execution_feasibility: float = 0.0
+    observability_gain: float = 0.0
+    risk_fit: float = 0.0
+    total_score: float = 0.0
+    dimension_reasons: dict[str, str] = Field(default_factory=dict)
+
+
+class StrategyTradeoff(BaseModel):
+    dimension: str
+    impact: str
+    value: float
+    reason: str
+
+
+class StrategyEvaluationContext(BaseModel):
+    issue_id: str
+    incident_key: Optional[str] = None
+    issue_type: str
+    severity: str
+    confidence: float
+    recurrence_status: Optional[str] = None
+    recurrence_count: int = 0
+    deviation_score: float = 0.0
+    priority_score: int = 0
+    platform: str
+    mode: str
+    current_incident_state: Optional[str] = None
+
+
+class StrategyDecisionTrace(BaseModel):
+    rank: int
+    strategy: StrategyCandidate
+    score: StrategyScore
+    decision_reason: str
+    tradeoffs: List[StrategyTradeoff] = Field(default_factory=list)
+
+
+class StrategySelection(BaseModel):
+    issue_id: str
+    incident_key: Optional[str] = None
+    selected_strategy_id: str
+    selected_strategy: StrategyCandidate
+    ranked_candidates: List[StrategyDecisionTrace] = Field(default_factory=list)
+    winning_reason: str
+    rejected_reasons: dict[str, str] = Field(default_factory=dict)
+    evaluation_context: StrategyEvaluationContext
 
 
 class IncidentState(BaseModel):
@@ -511,6 +624,7 @@ class IncidentDetail(IncidentSummary):
     related_events: List[HistoryEventSummary] = Field(default_factory=list)
     incident_state: Optional[IncidentState] = None
     remediation_strategy: Optional[RemediationStrategy] = None
+    strategy_selection: Optional[StrategySelection] = None
     playbook_execution: Optional[PlaybookExecution] = None
     approval_requests: List[ApprovalRequest] = Field(default_factory=list)
     approval_decisions: List[ApprovalDecision] = Field(default_factory=list)
@@ -539,6 +653,7 @@ class PlanResponse(BaseModel):
     approval_required_actions: List[Action] = Field(default_factory=list)
     blocked_actions: List[Action] = Field(default_factory=list)
     remediation_strategies: List[RemediationStrategy] = Field(default_factory=list)
+    strategy_selections: List[StrategySelection] = Field(default_factory=list)
     incident_states: List[IncidentState] = Field(default_factory=list)
     approvals: List[ApprovalQueueItem] = Field(default_factory=list)
     approval_summary: ApprovalSummary = Field(default_factory=ApprovalSummary)
@@ -559,6 +674,7 @@ class ExecuteResponse(BaseModel):
     approval_required_actions: List[Action] = Field(default_factory=list)
     blocked_actions: List[Action] = Field(default_factory=list)
     remediation_strategies: List[RemediationStrategy] = Field(default_factory=list)
+    strategy_selections: List[StrategySelection] = Field(default_factory=list)
     incident_states: List[IncidentState] = Field(default_factory=list)
     playbook_executions: List[PlaybookExecution] = Field(default_factory=list)
     approvals: List[ApprovalQueueItem] = Field(default_factory=list)

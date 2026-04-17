@@ -427,6 +427,11 @@ body {
     background: rgba(15, 23, 42, 0.88);
 }
 
+.incident-card-active {
+    border-color: rgba(94, 234, 212, 0.36);
+    box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.24);
+}
+
 .history-details-shell {
     display: flex;
     flex-direction: column;
@@ -481,6 +486,18 @@ body {
     border: 1px solid rgba(148, 163, 184, 0.12);
     background: rgba(15, 23, 42, 0.72);
     padding: 1rem;
+}
+
+.strategy-selection-card,
+.strategy-alt-card {
+    border-radius: 20px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(15, 23, 42, 0.78);
+    padding: 1rem;
+}
+
+.strategy-alt-card {
+    background: rgba(15, 23, 42, 0.66);
 }
 
 .strategy-step,
@@ -653,6 +670,109 @@ body {
     border-color: rgba(56, 189, 248, 0.22);
     background: rgba(8, 47, 73, 0.28);
     color: rgba(186, 230, 253, 0.94);
+}
+
+.graph-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+.graph-summary-card {
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.8rem;
+}
+
+.graph-node-group {
+    border-radius: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(2, 6, 23, 0.38);
+    padding: 0.8rem;
+}
+
+.graph-node-group-title {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.78);
+    margin-bottom: 0.65rem;
+}
+
+.graph-node-chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.graph-node-chip {
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.8);
+    color: rgba(226, 232, 240, 0.92);
+    padding: 0.38rem 0.72rem;
+    font-size: 0.76rem;
+    transition: all 170ms ease;
+}
+
+.graph-node-chip:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #fff;
+}
+
+.graph-node-chip-active {
+    border-color: rgba(94, 234, 212, 0.68);
+    background: rgba(20, 184, 166, 0.16);
+    color: rgba(204, 251, 241, 0.98);
+}
+
+.graph-node-chip-critical,
+.graph-node-chip-high {
+    border-color: rgba(251, 113, 133, 0.46);
+    background: rgba(127, 29, 29, 0.25);
+}
+
+.graph-node-chip-medium {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(120, 53, 15, 0.24);
+}
+
+.graph-node-chip-low {
+    border-color: rgba(56, 189, 248, 0.35);
+}
+
+.graph-detail-card,
+.graph-edge-card {
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.8rem;
+}
+
+.graph-detail-attributes {
+    margin-top: 0.7rem;
+    display: grid;
+    gap: 0.45rem;
+}
+
+.graph-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.7rem;
+    font-size: 0.82rem;
+}
+
+.graph-detail-key {
+    color: rgba(148, 163, 184, 0.82);
+    text-transform: capitalize;
+}
+
+.graph-detail-value {
+    color: rgba(241, 245, 249, 0.95);
+    text-align: right;
+    word-break: break-word;
 }
 
 .fade-rise {

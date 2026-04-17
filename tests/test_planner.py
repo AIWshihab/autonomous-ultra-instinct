@@ -16,17 +16,18 @@ def test_planner_creates_actions_for_issues():
 
     actions = planner.plan(issues)
 
-    assert len(actions) == 4
-    assert {action.action_type for action in actions} == {
+    assert len(actions) >= 2
+    assert "inspect_port_usage" in {action.action_type for action in actions}
+    assert {action.action_type for action in actions}.issubset({
         "inspect_port_usage",
         "inspect_process",
         "collect_forensic_snapshot",
         "stop_conflicting_process",
-    }
+    })
     assert all(action.issue_id == "issue-2" for action in actions)
     assert all(action.target == "port:5432" for action in actions)
     assert any(
-        action.planning_reason == "PORT_CONFLICT evidence maps to a safe observational port inspection first."
+        "PORT_CONFLICT strategy uses read-only inspection first." in action.planning_reason
         for action in actions
     )
 
@@ -70,12 +71,17 @@ def test_planner_builds_remediation_strategy_for_issue():
         )
     ]
 
-    actions, strategies = planner.plan_with_strategies(issues)
+    actions, strategies, selections = planner.plan_with_strategy_selection(issues)
 
     assert actions
     assert len(strategies) == 1
+    assert len(selections) == 1
     strategy = strategies[0]
+    selection = selections[0]
     assert strategy.issue_type == "SERVICE_DOWN"
     assert strategy.playbook.playbook_id == "service-down-v1"
     assert strategy.selection_reason
     assert strategy.playbook.steps
+    assert selection.selected_strategy_id
+    assert selection.winning_reason
+    assert selection.rejected_reasons

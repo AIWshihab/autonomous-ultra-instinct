@@ -12,6 +12,7 @@ from app.models.schemas import (
     PlaybookExecution,
     PlaybookStep,
     RemediationStrategy,
+    StrategyCandidate,
     StepTransition,
     VerificationCheckpoint,
     VerificationResult,
@@ -118,18 +119,30 @@ class PlaybookEngine:
     def get_playbook(self, issue_type: str) -> Playbook | None:
         return self._playbook_map().get(issue_type.upper())
 
-    def build_strategy(self, issue: Issue) -> RemediationStrategy:
+    def build_strategy(
+        self,
+        issue: Issue,
+        selected_strategy: StrategyCandidate | None = None,
+    ) -> RemediationStrategy:
         playbook = self.get_playbook(issue.type)
         if playbook is None:
             playbook = self._default_playbook(issue.type)
+        if selected_strategy is not None:
+            playbook = self._filter_playbook_for_selected_strategy(playbook, selected_strategy)
 
         recurrence = issue.recurrence_status or "new"
         deviation_hint = (
             f"deviation={issue.deviation_score:.2f}" if issue.deviation_score else "deviation=baseline"
         )
+        strategy_hint = (
+            f" Strategy candidate '{selected_strategy.name}' won ranking with steps: "
+            f"{', '.join(selected_strategy.ordered_step_ids)}."
+            if selected_strategy is not None
+            else ""
+        )
         selection_reason = (
             f"Selected {playbook.playbook_id} for {issue.type} with severity {issue.severity}, "
-            f"recurrence {recurrence}, and {deviation_hint}."
+            f"recurrence {recurrence}, and {deviation_hint}.{strategy_hint}"
         )
         return RemediationStrategy(
             incident_key=issue.incident_key or f"incident:{issue.id}",
@@ -143,6 +156,48 @@ class PlaybookEngine:
             playbook=playbook.model_copy(deep=True),
             candidate_action_ids=[],
         )
+
+    def _filter_playbook_for_selected_strategy(
+        self,
+        playbook: Playbook,
+        selected_strategy: StrategyCandidate,
+    ) -> Playbook:
+        action_set = set(selected_strategy.action_types)
+        if not action_set:
+            return playbook
+
+        selected_steps: list[PlaybookStep] = []
+        for step in playbook.steps:
+            if step.action_type is None:
+                if step.step_id.startswith("verify-") or step.step_id.startswith("close-"):
+                    selected_steps.append(step)
+                continue
+            if step.action_type in action_set:
+                selected_steps.append(step)
+
+        if not selected_steps:
+            return playbook
+
+        step_ids = {step.step_id for step in selected_steps}
+        rewired_steps: list[PlaybookStep] = []
+        for step in selected_steps:
+            rewired_steps.append(
+                step.model_copy(
+                    update={
+                        "next_step_on_success": (
+                            step.next_step_on_success
+                            if (step.next_step_on_success in step_ids)
+                            else None
+                        ),
+                        "next_step_on_failure": (
+                            step.next_step_on_failure
+                            if (step.next_step_on_failure in step_ids)
+                            else None
+                        ),
+                    }
+                )
+            )
+        return playbook.model_copy(update={"steps": rewired_steps})
 
     def apply_policy_classification(
         self,
