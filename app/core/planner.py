@@ -1,8 +1,16 @@
 from typing import List
 
 from app.core.playbook_engine import PlaybookEngine
+from app.core.posture_engine import ResponsePostureEngine
 from app.core.strategy_engine import StrategyEngine
-from app.models.schemas import Action, Issue, RemediationStrategy, StrategySelection
+from app.models.schemas import (
+    Action,
+    Issue,
+    RemediationStrategy,
+    ResponsePosture,
+    StateSnapshot,
+    StrategySelection,
+)
 
 
 class Planner:
@@ -17,13 +25,43 @@ class Planner:
         self,
         playbook_engine: PlaybookEngine | None = None,
         strategy_engine: StrategyEngine | None = None,
+        posture_engine: ResponsePostureEngine | None = None,
     ) -> None:
         self.playbook_engine = playbook_engine or PlaybookEngine()
         self.strategy_engine = strategy_engine or StrategyEngine()
+        self.posture_engine = posture_engine or ResponsePostureEngine()
 
     def plan(self, issues: List[Issue]) -> List[Action]:
         actions, _, _ = self.plan_with_strategy_selection(issues)
         return actions
+
+    def annotate_issues_with_posture(
+        self,
+        snapshot: StateSnapshot,
+        strategy_selections: List[StrategySelection],
+        *,
+        platform: str,
+        mode: str,
+    ) -> tuple[StateSnapshot, ResponsePosture]:
+        issue_postures: list[ResponsePosture] = []
+        updated_issues: list[Issue] = []
+        strategy_selection_by_issue = {selection.issue_id: selection for selection in strategy_selections}
+
+        for issue in snapshot.issues:
+            selection = strategy_selection_by_issue.get(issue.id)
+            posture = self.posture_engine.assess_issue_posture(
+                issue,
+                selection,
+                platform=platform,
+                mode=mode,
+            )
+            issue_postures.append(posture)
+            updated_issues.append(issue.model_copy(update={"response_posture": posture}))
+
+        return (
+            snapshot.model_copy(update={"issues": updated_issues}),
+            self.posture_engine.assess_overall_posture(issue_postures),
+        )
 
     def plan_with_strategies(
         self,

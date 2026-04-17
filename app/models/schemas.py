@@ -91,6 +91,7 @@ class Issue(BaseModel):
     baseline_summary: Optional[str] = None
     deviation_score: float = 0.0
     anomaly_context: Optional["AnomalyContext"] = None
+    response_posture: Optional["ResponsePosture"] = None
 
 
 class HostBaseline(BaseModel):
@@ -256,6 +257,27 @@ class ApprovalStatus(str, Enum):
 class OperatorAction(str, Enum):
     approve = "approve"
     deny = "deny"
+
+
+class ResponsePostureCategory(str, Enum):
+    observe = "observe"
+    stabilize = "stabilize"
+    contain = "contain"
+    isolate = "isolate"
+    defer = "defer"
+
+
+class ResponsePosture(BaseModel):
+    posture_label: str
+    posture_category: ResponsePostureCategory
+    defense_focus: str
+    escalation_recommendation: str
+    rationale: str
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    risk_alignment: str
+    approval_pressure: float = Field(default=0.0, ge=0.0, le=1.0)
+    disruption_cost: float = Field(default=0.0, ge=0.0, le=1.0)
+    supporting_factors: List[str] = Field(default_factory=list)
 
 
 class EscalationClass(str, Enum):
@@ -659,6 +681,7 @@ class PlanResponse(BaseModel):
     approval_summary: ApprovalSummary = Field(default_factory=ApprovalSummary)
     operator_decision_trace: List[OperatorDecisionTrace] = Field(default_factory=list)
     decision_trace: List[DecisionTraceEntry] = Field(default_factory=list)
+    response_posture: Optional[ResponsePosture] = None
     audit_trail: AuditTrail = Field(default_factory=AuditTrail)
 
 
@@ -685,4 +708,5 @@ class ExecuteResponse(BaseModel):
     dispatch: DispatchResult
     verification_results: List[VerificationResult] = Field(default_factory=list)
     decision_trace: List[DecisionTraceEntry] = Field(default_factory=list)
+    response_posture: Optional[ResponsePosture] = None
     audit_trail: AuditTrail = Field(default_factory=AuditTrail)

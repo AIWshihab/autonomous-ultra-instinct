@@ -221,6 +221,25 @@ def test_plan_includes_policy_metadata():
     assert first_selection.winning_reason
     assert first_selection.ranked_candidates
     assert first_selection.rejected_reasons
+    assert plan.response_posture is not None
+    assert plan.response_posture.posture_label in {"Observation", "Stabilization", "Containment", "Isolation", "Human Review"}
+    assert any(issue.response_posture for issue in plan.snapshot.issues)
+
+
+def test_execute_includes_response_posture_assessment():
+    response = client.get("/execute?platform=linux")
+    assert response.status_code == 200
+
+    execution_report = ExecuteResponse.model_validate(response.json())
+    assert execution_report.response_posture is not None
+    assert execution_report.response_posture.posture_category in {
+        "observe",
+        "stabilize",
+        "contain",
+        "isolate",
+        "defer",
+    }
+    assert any(issue.response_posture for issue in execution_report.snapshot.issues)
 
 
 def test_plan_includes_trace_and_planning_reasons():

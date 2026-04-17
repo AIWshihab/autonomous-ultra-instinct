@@ -41,6 +41,7 @@ from app.models.schemas import (
     Playbook,
     PlaybookExecution,
     RemediationStrategy,
+    ResponsePosture,
     RuntimeObservationTrace,
     StrategySelection,
     StateSnapshot,
@@ -670,6 +671,12 @@ async def get_plan(platform: str | None = None, mode: str | None = None):
         platform=normalized_platform,
         mode=normalized_mode,
     )
+    snapshot, response_posture = planner.annotate_issues_with_posture(
+        snapshot,
+        strategy_selections,
+        platform=normalized_platform,
+        mode=normalized_mode,
+    )
     evaluated_actions = policy_engine.evaluate_actions(
         candidate_actions,
         platform=normalized_platform,
@@ -736,6 +743,7 @@ async def get_plan(platform: str | None = None, mode: str | None = None):
         approval_summary=approval_summary,
         operator_decision_trace=combined_operator_trace,
         decision_trace=decision_trace,
+        response_posture=response_posture,
         audit_trail=audit_trail,
     )
     _persist_plan_event(plan_response, normalized_platform, normalized_mode)
@@ -760,6 +768,12 @@ async def get_execute(platform: str | None = None, mode: str | None = None):
     )
     candidate_actions, remediation_strategies, strategy_selections = planner.plan_with_strategy_selection(
         snapshot.issues,
+        platform=normalized_platform,
+        mode=normalized_mode,
+    )
+    snapshot, response_posture = planner.annotate_issues_with_posture(
+        snapshot,
+        strategy_selections,
         platform=normalized_platform,
         mode=normalized_mode,
     )
@@ -856,6 +870,7 @@ async def get_execute(platform: str | None = None, mode: str | None = None):
         approval_halt_reasons=approval_halt_reasons,
         dispatch=dispatch_result,
         verification_results=verification_results,
+        response_posture=response_posture,
         decision_trace=decision_trace,
         audit_trail=audit_trail,
     )

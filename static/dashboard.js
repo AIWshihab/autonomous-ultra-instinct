@@ -16,16 +16,64 @@ const state = {
     incidentGraph: null,
     selectedGraphNodeId: null,
     selectedIncidentKey: null,
+    theme: "haikyuu-dark",
+    soundEnabled: true,
+    soundVolume: 0.18,
+    audioContext: null,
+    revealObserver: null,
 };
 
 const els = {};
 
 document.addEventListener("DOMContentLoaded", () => {
     cacheElements();
+    loadUiPreferences();
+    setupAudioEngine();
     bindControls();
+    applyTheme();
+    applySoundUiState();
+    setupMotionSystems();
+    setupScrollProgress();
     applyControlState();
     loadView("snapshot");
 });
+
+function setupAudioEngine() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) {
+            return;
+        }
+        state.audioContext = new AudioContext();
+    } catch (error) {
+        console.warn("Audio context unavailable for UI feedback", error);
+        state.audioContext = null;
+    }
+}
+
+function playUiSound(type) {
+    if (!state.soundEnabled || !state.audioContext) {
+        return;
+    }
+
+    if (state.audioContext.state === "suspended") {
+        state.audioContext.resume().catch(() => {});
+    }
+
+    const now = state.audioContext.currentTime;
+    const gain = state.audioContext.createGain();
+    const oscillator = state.audioContext.createOscillator();
+
+    gain.gain.value = state.soundVolume;
+    oscillator.connect(gain);
+    gain.connect(state.audioContext.destination);
+
+    oscillator.type = type === "error" ? "sine" : type === "theme" ? "triangle" : "square";
+    oscillator.frequency.value = type === "select" ? 620 : type === "theme" ? 420 : type === "error" ? 220 : 520;
+
+    oscillator.start(now);
+    oscillator.stop(now + (type === "theme" ? 0.16 : 0.1));
+}
 
 function cacheElements() {
     const ids = [
@@ -35,6 +83,9 @@ function cacheElements() {
         "snapshot-btn",
         "plan-btn",
         "execute-btn",
+        "theme-select",
+        "sound-toggle",
+        "sound-volume",
         "feedback-banner",
         "status-pill",
         "live-pill",
@@ -46,6 +97,8 @@ function cacheElements() {
         "hero-mode",
         "last-refresh",
         "health-summary",
+        "posture-label",
+        "posture-summary",
         "summary-os",
         "summary-hostname",
         "summary-cpu",
@@ -112,6 +165,7 @@ function cacheElements() {
         "graph-edge-panel",
         "incident-meta",
         "incident-list",
+        "top-progress",
     ];
 
     ids.forEach((id) => {
@@ -119,23 +173,145 @@ function cacheElements() {
     });
 }
 
+function loadUiPreferences() {
+    const savedTheme = window.localStorage.getItem("ara_ui_theme");
+    const savedSoundEnabled = window.localStorage.getItem("ara_ui_sound_enabled");
+    const savedSoundVolume = window.localStorage.getItem("ara_ui_sound_volume");
+
+    if (savedTheme) {
+        state.theme = savedTheme;
+    }
+    if (savedSoundEnabled !== null) {
+        state.soundEnabled = savedSoundEnabled === "true";
+    }
+    if (savedSoundVolume !== null) {
+        const volume = Number(savedSoundVolume);
+        if (!Number.isNaN(volume)) {
+            state.soundVolume = Math.max(0, Math.min(1, volume));
+        }
+    }
+}
+
+function persistUiPreferences() {
+    window.localStorage.setItem("ara_ui_theme", state.theme);
+    window.localStorage.setItem("ara_ui_sound_enabled", String(state.soundEnabled));
+    window.localStorage.setItem("ara_ui_sound_volume", String(state.soundVolume));
+}
+
+function applyTheme() {
+    document.body.dataset.theme = state.theme;
+    if (els["theme-select"]) {
+        els["theme-select"].value = state.theme;
+    }
+}
+
+function applySoundUiState() {
+    if (els["sound-toggle"]) {
+        els["sound-toggle"].textContent = state.soundEnabled ? "Sound On" : "Sound Off";
+    }
+    if (els["sound-volume"]) {
+        els["sound-volume"].value = Math.round(state.soundVolume * 100);
+        els["sound-volume"].disabled = !state.soundEnabled;
+    }
+}
+
+function setupMotionSystems() {
+    const revealTargets = document.querySelectorAll(".section-panel, .summary-card, .result-column, .glass-panel");
+    revealTargets.forEach((target) => target.classList.add("motion-reveal"));
+
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+        state.revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("is-visible");
+                    state.revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+
+        revealTargets.forEach((target) => state.revealObserver.observe(target));
+    } else {
+        revealTargets.forEach((target) => target.classList.add("is-visible"));
+    }
+}
+
+function setupScrollProgress() {
+    const update = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 0;
+        if (els["top-progress"]) {
+            els["top-progress"].style.width = `${Math.min(100, Math.max(0, progress))}%`;
+        }
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    update();
+}
+
 function bindControls() {
     els["platform-select"].addEventListener("change", (event) => {
         state.platform = event.target.value;
         applyControlState();
+        playUiSound("select");
         loadView(state.lastAction);
     });
 
     els["mode-select"].addEventListener("change", (event) => {
         state.mode = event.target.value;
         applyControlState();
+        playUiSound("select");
         loadView(state.lastAction);
     });
 
-    els["refresh-btn"].addEventListener("click", () => loadView(state.lastAction));
-    els["snapshot-btn"].addEventListener("click", () => loadView("snapshot"));
-    els["plan-btn"].addEventListener("click", () => loadView("plan"));
-    els["execute-btn"].addEventListener("click", () => loadView("execute"));
+    els["refresh-btn"].addEventListener("click", () => {
+        playUiSound("tap");
+        loadView(state.lastAction);
+    });
+    els["snapshot-btn"].addEventListener("click", () => {
+        playUiSound("tap");
+        loadView("snapshot");
+    });
+    els["plan-btn"].addEventListener("click", () => {
+        playUiSound("tap");
+        loadView("plan");
+    });
+    els["execute-btn"].addEventListener("click", () => {
+        playUiSound("tap");
+        loadView("execute");
+    });
+
+    if (els["theme-select"]) {
+        els["theme-select"].addEventListener("change", (event) => {
+            state.theme = event.target.value;
+            persistUiPreferences();
+            applyTheme();
+            playUiSound("theme");
+        });
+    }
+
+    if (els["sound-toggle"]) {
+        els["sound-toggle"].addEventListener("click", () => {
+            state.soundEnabled = !state.soundEnabled;
+            persistUiPreferences();
+            applySoundUiState();
+            playUiSound("tap");
+        });
+    }
+
+    if (els["sound-volume"]) {
+        els["sound-volume"].addEventListener("input", (event) => {
+            const raw = Number(event.target.value);
+            state.soundVolume = Math.max(0, Math.min(1, raw / 100));
+            persistUiPreferences();
+            applySoundUiState();
+            playUiSound("tap");
+        });
+    }
+
+    document.addEventListener("toggle", (event) => {
+        if (event.target && event.target.tagName === "DETAILS") {
+            playUiSound("panel");
+        }
+    }, true);
 }
 
 function applyControlState() {
@@ -600,6 +776,14 @@ function renderAll() {
     renderRuntimeObservation(snapshot.runtime_observation_trace || null, state.runtimeRecent || []);
     renderGraphPanel();
     renderHistoryTimeline();
+    enhanceDynamicFx();
+}
+
+function enhanceDynamicFx() {
+    const dynamicTargets = document.querySelectorAll(".issue-card, .service-card, .action-card, .runtime-card, .approval-card, .strategy-card, .history-item");
+    dynamicTargets.forEach((item) => {
+        item.style.willChange = "transform, opacity";
+    });
 }
 
 function renderLoadingState(action) {
@@ -1084,6 +1268,14 @@ function renderHero(snapshot, risk, issues, candidateActions, allowedActions) {
     els["last-refresh"].textContent = formatTime(state.lastRefresh);
     els["health-summary"].textContent = `${allowedActions.length}/${candidateActions.length || 0} actions allowed by policy.`;
 
+    const posture = state.data.response_posture || snapshot.response_posture || null;
+    if (posture) {
+        els["posture-label"].textContent = posture.posture_label;
+        els["posture-summary"].textContent = posture.defense_focus;
+    } else {
+        els["posture-label"].textContent = "Pending";
+        els["posture-summary"].textContent = "Awaiting plan assessment.";
+    }
     els["status-pill"].textContent = risk.label;
     els["status-pill"].className = `status-pill ${risk.statusClass}`;
 }
@@ -1148,6 +1340,7 @@ function renderIssues(issues) {
                         <span class="status-badge status-neutral">Target: ${escapeHtml(target)}</span>
                         <span class="status-badge status-neutral">Priority: ${escapeHtml(String(issue.priority_score ?? "--"))}</span>
                         <span class="status-badge status-neutral">Confidence: ${escapeHtml(formatConfidence(issue.confidence))}</span>
+                        <span class="status-badge status-neutral">Posture: ${escapeHtml(issue.response_posture?.posture_label || "pending")}</span>
                         <span class="status-badge status-neutral">ID: ${escapeHtml(issue.id || "n/a")}</span>
                     </div>
                     ${renderIssueAnomalySection(issue)}
